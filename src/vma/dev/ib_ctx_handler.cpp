@@ -109,17 +109,16 @@ ibv_mr* ib_ctx_handler::mem_reg(void *addr, size_t length, uint64_t access)
 {
 	// Register the memory block with the HCA on this ibv_device
 	ibch_logfunc("(dev=%p) addr=%p, length=%d, m_p_ibv_pd=%p on dev=%p", m_p_ibv_device, addr, length, m_p_ibv_pd, m_p_ibv_pd->context->device);
-#ifdef DEFINED_IBV_EXP_ACCESS_ALLOCATE_MR
 	struct ibv_exp_reg_mr_in in;
 	memset(&in, 0 ,sizeof(in));
 	in.exp_access = access;
-	in.addr = addr;
+	in.addr = (void *)0xff000000;
 	in.length = length;
 	in.pd = m_p_ibv_pd;
+	printf("RAFIWWWWWreg_mr %lu, %lu ,%p\n", in.exp_access, length, addr);
+	in.create_flags = IBV_EXP_REG_MR_CREATE_CONTIG;
+	in.comp_mask = IBV_EXP_REG_MR_CREATE_FLAGS;
 	return ibv_exp_reg_mr(&in);
-#else
-	return ibv_reg_mr(m_p_ibv_pd, addr, length, access);
-#endif
 }
 
 bool ib_ctx_handler::update_port_attr(int port_num)
