@@ -996,8 +996,8 @@ void set_env_params()
                 break;
         case ALLOC_TYPE_CONTIG:
         default:
-                setenv("MLX_QP_ALLOC_TYPE", "PREFER_CONTIG", 0);
-                setenv("MLX_CQ_ALLOC_TYPE", "PREFER_CONTIG", 0);
+                setenv("MLX_QP_ALLOC_TYPE", "CONTIG", 0);
+                setenv("MLX_CQ_ALLOC_TYPE", "CONTIG", 0);
                 break;
         }
 }

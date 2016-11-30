@@ -644,6 +644,7 @@ extern mce_sys_var & safe_mce_sys();
 #define MCE_MAX_CQ_POLL_BATCH				(128)
 #define MCE_DEFAULT_IPOIB_FLAG				(1)
 
+//#define MCE_ALIGNMENT					((unsigned long)4095)
 #define MCE_ALIGNMENT					((unsigned long)63)
 #define RX_BUF_SIZE(mtu)				(mtu + IPOIB_HDR_LEN + GRH_HDR_LEN) // RX buffers are larger in IB
 #define TX_BUF_SIZE(mtu)				(mtu + ETH_HDR_LEN) // Tx buffers are larger in Ethernet (they include L2 for RAW QP)
