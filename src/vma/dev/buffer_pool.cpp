@@ -117,16 +117,20 @@ buffer_pool::buffer_pool(size_t buffer_count, size_t buf_size, ib_ctx_handler *p
 			break;
 		}
 	case ALLOC_TYPE_CONTIG:
-		m_data_block = (void *)0xfe000000;
-		access |= IBV_EXP_ACCESS_ALLOCATE_MR; // for contiguous pages use only
+#ifndef VMA_IBV_ACCESS_ALLOCATE_MR
+		m_is_contig_alloc = false;
+#else
+		m_data_block = NULL;
+		access |= VMA_IBV_ACCESS_ALLOCATE_MR; // for contiguous pages use only
 		if (!register_memory(size, m_p_ib_ctx_h, access)) {
-			printf("Failed allocating contiguous pages\n");
+			__log_info_dbg("Failed allocating contiguous pages");
 			m_is_contig_alloc = false;
 		}
 		else {
-			printf("Contiguous pages allocation passed successfully\n");
+			__log_info_dbg("Contiguous pages allocation passed successfully");
 			break;
 		}
+#endif
 	case ALLOC_TYPE_ANON:
 	default:
 		__log_info_dbg("allocating memory using malloc()");
