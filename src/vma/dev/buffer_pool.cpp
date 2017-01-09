@@ -93,8 +93,9 @@ buffer_pool::buffer_pool(size_t buffer_count, size_t buf_size, ib_ctx_handler *p
 
 	size_t size;
 	if (buffer_count) {
-		sz_aligned_element = (buf_size + MCE_ALIGNMENT) & (~MCE_ALIGNMENT);
-		size = (sizeof(mem_buf_desc_t) + sz_aligned_element) * buffer_count + MCE_ALIGNMENT;
+		sz_aligned_element = (buf_size + MCE_4K_ALIGNMENT) & (~MCE_4K_ALIGNMENT);
+		size = ((sizeof(mem_buf_desc_t) + sz_aligned_element) * buffer_count +
+			MCE_ALIGNMENT) & (~MCE_ALIGNMENT);
 	} else {
 		size = buf_size;
 	}
