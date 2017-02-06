@@ -472,7 +472,9 @@ tcp_process(struct tcp_pcb *pcb, tcp_in_data* in_data)
   if (in_data->flags & TCP_RST) {
     /* First, determine if the reset is acceptable. */
     if (get_tcp_state(pcb) == SYN_SENT) {
+    	fprintf(stderr, "tcp_process %d\n",__LINE__);
       if (in_data->ackno == pcb->snd_nxt) {
+    	  fprintf(stderr, "tcp_process %d\n",__LINE__);
         acceptable = 1;
       }
     } else {
@@ -487,6 +489,7 @@ tcp_process(struct tcp_pcb *pcb, tcp_in_data* in_data)
       LWIP_ASSERT("tcp_input: get_tcp_state(pcb) != CLOSED", get_tcp_state(pcb) != CLOSED);
       in_data->recv_flags |= TF_RESET;
       pcb->flags &= ~TF_ACK_DELAY;
+      fprintf(stderr, "tcp_process %d\n",__LINE__);
       return ERR_RST;
     } else {
       LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_process: unacceptable reset seqno %"U32_F" rcv_nxt %"U32_F"\n",
@@ -498,6 +501,7 @@ tcp_process(struct tcp_pcb *pcb, tcp_in_data* in_data)
   }
 
   if ((in_data->flags & TCP_SYN) && (get_tcp_state(pcb) != SYN_SENT && get_tcp_state(pcb) != SYN_RCVD)) {
+	  fprintf(stderr, "tcp_process %d\n",__LINE__);
     /* Cope with new connection attempt after remote end crashed */
     tcp_ack_now(pcb);
     return ERR_OK;
@@ -514,6 +518,7 @@ tcp_process(struct tcp_pcb *pcb, tcp_in_data* in_data)
   /* Do different things depending on the TCP state. */
   switch (get_tcp_state(pcb)) {
   case SYN_SENT:
+	  fprintf(stderr, "tcp_process %d\n",__LINE__);
     LWIP_DEBUGF(TCP_INPUT_DEBUG, ("SYN-SENT: ackno %"U32_F" pcb->snd_nxt %"U32_F" unacked %"U32_F"\n", in_data->ackno,
      pcb->snd_nxt, ntohl(pcb->unacked->tcphdr->seqno)));
     /* received SYN ACK with expected sequence number? */
@@ -592,6 +597,7 @@ tcp_process(struct tcp_pcb *pcb, tcp_in_data* in_data)
           if (err != ERR_ABRT) {
             tcp_abort(pcb);
           }
+          fprintf(stderr, "tcp_process %d\n",__LINE__);
           return ERR_ABRT;
         }
         old_cwnd = pcb->cwnd;

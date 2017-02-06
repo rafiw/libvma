@@ -677,11 +677,13 @@ tcp_connect(struct tcp_pcb *pcb, ip_addr_t *ipaddr, u16_t port,
   /* Send a SYN together with the MSS option. */
   ret = tcp_enqueue_flags(pcb, TCP_SYN);
   if (ret == ERR_OK) {
+	  fprintf(stderr, "tcp_connect %d\n",__LINE__);
     /* SYN segment was enqueued, changed the pcbs state now */
 	  set_tcp_state(pcb, SYN_SENT);
 
     tcp_output(pcb);
   }
+  fprintf(stderr, "tcp_connect %d\n",__LINE__);
   return ret;
 }
 
@@ -720,11 +722,13 @@ tcp_slowtmr(struct tcp_pcb* pcb)
 	if (get_tcp_state(pcb) == SYN_SENT && pcb->nrtx == TCP_SYNMAXRTX) {
 	  ++pcb_remove;
 	  err = ERR_TIMEOUT;
+	  fprintf(stderr, "tcp_slowtmr %d\n",__LINE__);
 	  LWIP_DEBUGF(TCP_DEBUG, ("tcp_slowtmr: max SYN retries reached\n"));
 	}
 	else if (pcb->nrtx == TCP_MAXRTX) {
 	  ++pcb_remove;
 	  err = ERR_ABRT;
+	  fprintf(stderr, "tcp_slowtmr %d\n",__LINE__);
 	  LWIP_DEBUGF(TCP_DEBUG, ("tcp_slowtmr: max DATA retries reached\n"));
 	} else {
 	  if (pcb->persist_backoff > 0) {
@@ -789,6 +793,7 @@ tcp_slowtmr(struct tcp_pcb* pcb)
 			TCP_FIN_WAIT_TIMEOUT / TCP_SLOW_INTERVAL) {
 				++pcb_remove;
 				err = ERR_ABRT;
+				fprintf(stderr, "tcp_slowtmr %d\n",__LINE__);
 				LWIP_DEBUGF(TCP_DEBUG, ("tcp_slowtmr: removing pcb stuck in FIN-WAIT-2\n"));
 			}
 		}
@@ -813,6 +818,7 @@ tcp_slowtmr(struct tcp_pcb* pcb)
 
 		++pcb_remove;
 		err = ERR_ABRT;
+		fprintf(stderr, "tcp_slowtmr %d\n",__LINE__);
 		++pcb_reset;
 	  }
 #if LWIP_TCP_KEEPALIVE
@@ -848,6 +854,7 @@ tcp_slowtmr(struct tcp_pcb* pcb)
 		  TCP_SYN_RCVD_TIMEOUT / TCP_SLOW_INTERVAL) {
 		++pcb_remove;
 		err = ERR_ABRT;
+		fprintf(stderr, "tcp_slowtmr %d\n",__LINE__);
 		LWIP_DEBUGF(TCP_DEBUG, ("tcp_slowtmr: removing pcb stuck in SYN-RCVD\n"));
 	  }
 	}
@@ -857,6 +864,7 @@ tcp_slowtmr(struct tcp_pcb* pcb)
 	  if ((u32_t)(tcp_ticks - pcb->tmr) > 2 * TCP_MSL / TCP_SLOW_INTERVAL) {
 		++pcb_remove;
 		err = ERR_ABRT;
+		fprintf(stderr, "tcp_slowtmr %d\n",__LINE__);
 		LWIP_DEBUGF(TCP_DEBUG, ("tcp_slowtmr: removing pcb stuck in LAST-ACK\n"));
 	  }
 	}

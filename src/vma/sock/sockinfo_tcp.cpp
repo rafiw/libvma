@@ -1020,13 +1020,16 @@ void sockinfo_tcp::err_lwip_cb(void *pcb_container, err_t err)
 
 	conn->m_conn_state = TCP_CONN_FAILED;
 	if (err == ERR_TIMEOUT) {
+		vlog_printf(VLOG_ERROR, "RAFI22\n");
 		conn->m_conn_state = TCP_CONN_TIMEOUT;
 		conn->m_error_status = ETIMEDOUT;
 	} else if (err == ERR_RST) {
 		if (conn->m_sock_state == TCP_SOCK_ASYNC_CONNECT) {
+			vlog_printf(VLOG_ERROR, "RAFI33\n");
 			conn->m_conn_state = TCP_CONN_ERROR;
 			conn->m_error_status = ECONNREFUSED;
 		} else {
+			vlog_printf(VLOG_ERROR, "RAFI44\n");
 			conn->m_conn_state = TCP_CONN_RESETED;
 		}
 	}
@@ -1670,6 +1673,7 @@ ssize_t sockinfo_tcp::rx(const rx_call_t call_type, iovec* p_iov, ssize_t sz_iov
 				ret = -1;
 			} else if (m_conn_state == TCP_CONN_RESETED) {
 				si_tcp_logdbg("RX on reseted socket");
+				si_tcp_logerr("RX on reseted socket");
 				m_conn_state = TCP_CONN_FAILED;
 				errno = ECONNRESET;
 				ret = -1;
@@ -2052,6 +2056,7 @@ int sockinfo_tcp::connect(const sockaddr *__to, socklen_t __tolen)
 		//todo consider setPassthrough and go to OS
 		destructor_helper();
 		unlock_tcp_con();
+		si_tcp_logerr("RAI errno %m",errno);
 		// errno is set inside wait_for_conn_ready
 		return -1;
 	}
@@ -2919,6 +2924,7 @@ err_t sockinfo_tcp::connect_lwip_cb(void *arg, struct tcp_pcb *tpcb, err_t err)
 	else {
 		conn->m_error_status = ECONNREFUSED;
 		conn->m_conn_state = TCP_CONN_FAILED;
+		vlog_printf(VLOG_ERROR, "RAFI 2921\n");;
 	}
 	
 	NOTIFY_ON_EVENTS(conn, EPOLLOUT);
@@ -2953,19 +2959,21 @@ int sockinfo_tcp::wait_for_conn_ready()
 		//we get here if err_lwip_cb() was called and set m_sock_state=TCP_SOCK_INITED
 		m_conn_state = TCP_CONN_FAILED;
 		errno = ECONNREFUSED;
-		si_tcp_logdbg("got connection error");
+		si_tcp_logerr("got connection error");
 		//if we got here, bind succeeded earlier (in connect()), so change m_sock_state back to TCP_SOCK_BOUND to avoid binding again in case of recalling connect()
 		m_sock_state = TCP_SOCK_BOUND;
 		return -1;
 
 	}
 	if (m_conn_state != TCP_CONN_CONNECTED) {
+		si_tcp_logerr("RAFI2 state %d %m",m_conn_state,errno);
 		if (m_conn_state == TCP_CONN_TIMEOUT) {
 			m_conn_state = TCP_CONN_FAILED;
 			errno = ETIMEDOUT;
 		} else {
 			errno = ECONNREFUSED;
 		}
+		si_tcp_logerr("RAFI3 state %d %m",m_conn_state,errno);
 		si_tcp_logdbg("bad connect -> timeout or none listening");
 		return -1;
 	}
