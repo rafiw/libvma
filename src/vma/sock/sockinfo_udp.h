@@ -221,6 +221,10 @@ private:
 	const uint32_t	m_n_sysvar_rx_cq_drain_rate_nsec;
 	const uint32_t	m_n_sysvar_rx_delta_tsc_between_cq_polls;
 
+#ifndef DEFINED_IBV_OLD_VERBS_MLX_OFED
+	struct ibv_exp_wq_mp_rq mp_rq;
+#endif
+
 	int mc_change_membership(const mc_pending_pram *p_mc_pram);
 	int mc_change_membership_start_helper(in_addr_t mc_grp, int optname);
 	int mc_change_membership_end_helper(in_addr_t mc_grp, int optname, in_addr_t mc_src = 0);
@@ -241,7 +245,6 @@ private:
 	void 		save_stats_tx_offload(int bytes, bool is_droped, bool is_dummy);
 
 	int 		rx_wait_helper(int &poll_count, bool is_blocking);
-	
 	inline int 	rx_wait(bool blocking);
 	inline ssize_t	poll_os();
 

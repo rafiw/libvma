@@ -430,7 +430,7 @@ void mce_sys_var::get_env_params()
 	rx_prefetch_bytes_before_poll = MCE_DEFAULT_RX_PREFETCH_BYTES_BEFORE_POLL;
 	rx_cq_drain_rate_nsec 	= MCE_DEFAULT_RX_CQ_DRAIN_RATE;
 	rx_delta_tsc_between_cq_polls = 0;
-
+	vma_mp_rq		= MCE_DEFAULT_MP_RQ;
 	gro_streams_max		= MCE_DEFAULT_GRO_STREAMS_MAX;
 
 	tcp_3t_rules		= MCE_DEFAULT_TCP_3T_RULES;
@@ -1061,6 +1061,9 @@ void mce_sys_var::get_env_params()
 
 	if ((env_ptr = getenv(SYS_VAR_VMA_RX_POLL_ON_TX_TCP)) != NULL)
 		rx_poll_on_tx_tcp = atoi(env_ptr) ? true : false;
+
+	if ((env_ptr = getenv(SYS_VAR_ENABLE_MP_RQ)) != NULL)
+		vma_mp_rq = (bool)atoi(env_ptr);
 
 #ifdef VMA_TIME_MEASURE
 	if ((env_ptr = getenv(SYS_VAR_VMA_TIME_MEASURE_NUM_SAMPLES)) != NULL) {

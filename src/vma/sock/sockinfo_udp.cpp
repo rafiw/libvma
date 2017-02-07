@@ -104,6 +104,7 @@ enum {
 /* For MCD */
 #define UDP_MAP_ADD             101
 #define UDP_MAP_REMOVE          102
+#define UDP_MP_RQ               103
 
 /**/
 /** inlining functions can only help if they are implemented before their usage **/
@@ -414,7 +415,9 @@ sockinfo_udp::sockinfo_udp(int fd) throw (vma_exception) :
 	if (unlikely(orig_os_api.epoll_ctl(m_rx_epfd, EPOLL_CTL_ADD, ev.data.fd, &ev)))
 		si_udp_logpanic("failed to add user's fd to internal epfd errno=%d (%m)", errno);
 	BULLSEYE_EXCLUDE_BLOCK_END
-
+#ifndef DEFINED_IBV_OLD_VERBS_MLX_OFED
+	memset(&mp_rq, 0, sizeof(mp_rq));
+#endif
 	si_udp_logfunc("done");
 }
 
@@ -1106,7 +1109,7 @@ int sockinfo_udp::setsockopt(int __level, int __optname, __const void *__optval,
 			m_port_map_lock.unlock();
 			return 0;
 
-		case UDP_MAP_REMOVE:
+		case UDP_MAP_REMOVE: {
 			if (! __optval) {
 				si_udp_loginfo("UDP_MAP_REMOVE __optval = NULL");
 				break;
@@ -1117,9 +1120,27 @@ int sockinfo_udp::setsockopt(int __level, int __optname, __const void *__optval,
 			m_port_map.erase(std::remove(m_port_map.begin(), m_port_map.end(), port), m_port_map.end());
 			m_port_map_lock.unlock();
 			return 0;
+		}
+		case UDP_MP_RQ: {
+#ifdef DEFINED_IBV_OLD_VERBS_MLX_OFED
+			si_udp_logdbg("VMA was not compiles with extra API, mp_rq disabled");
+			return -1;
+			if (! __optval) {
+				si_udp_loginfo("UDP_MP_RQ __optval = NULL");
+				break;
+			}
+#else
+			if (__optlen != sizeof(struct ibv_exp_wq_mp_rq)) {
+				si_udp_logdbg("bad parameter for mp_rq, expecting struct "
+						"ibv_exp_wq_mp_rq ");
+				return -1;
+			}
+			struct ibv_exp_wq_mp_rq *__mp_rq = (struct ibv_exp_wq_mp_rq *)__optval;
+			memcpy(__mp_rq, &mp_rq, __optlen);
+			return 0;
+#endif
+		}
 		} // case IPPROTO_UDP
-		break;
-
 	default:
 		{
 			si_udp_logdbg("level = %d, optname = %d", __level, __optname);

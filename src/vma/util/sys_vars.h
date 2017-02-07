@@ -409,6 +409,7 @@ struct mce_sys_var {
 	char 		vma_time_measure_filename[FILENAME_MAX];
 	sysctl_reader_t & sysctl_reader;
 	bool		rx_poll_on_tx_tcp;
+	bool		vma_mp_rq;
 
 private:
 	void print_vma_load_failure_msg();
@@ -537,6 +538,7 @@ extern mce_sys_var & safe_mce_sys();
 #define SYS_VAR_VMA_TIME_MEASURE_NUM_SAMPLES		"VMA_TIME_MEASURE_NUM_SAMPLES"
 #define SYS_VAR_VMA_TIME_MEASURE_DUMP_FILE		"VMA_TIME_MEASURE_DUMP_FILE"
 #define SYS_VAR_VMA_RX_POLL_ON_TX_TCP			"VMA_RX_POLL_ON_TX_TCP"
+#define SYS_VAR_ENABLE_MP_RQ				"VMA_MP_RQ"
 
 #define MCE_DEFAULT_LOG_FILE				("")
 #define MCE_DEFAULT_CONF_FILE				("/etc/libvma.conf")
@@ -576,6 +578,7 @@ extern mce_sys_var & safe_mce_sys();
 #define MCE_DEFAULT_TX_NUM_SGE				(2)
 #define MCE_DEFAULT_RX_NUM_BUFS				(200000)
 #define MCE_DEFAULT_RX_BUFS_BATCH			(64)
+#define MCE_DEFAULT_MP_RQ					(0)
 #ifdef DEFINED_VMAPOLL
 #define MCE_DEFAULT_RX_NUM_WRE				(1024)
 #else
