@@ -63,7 +63,7 @@ private:
 	bool m_is_valid;
 	size_t m_cma_id_bind_trial_count;
 	void* m_timer_handle;
-	net_device_val::bond_type m_bond;
+	net_device_val::ring_type m_bond;
 	int timer_count;
 };
 

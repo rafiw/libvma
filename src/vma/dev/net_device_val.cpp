@@ -71,7 +71,7 @@
 
 net_device_val::net_device_val(transport_type_t transport_type) : m_if_idx(0), m_local_addr(0),
 m_netmask(0), m_mtu(0), m_state(INVALID), m_p_L2_addr(NULL), m_p_br_addr(NULL),
-m_transport_type(transport_type),  m_lock("net_device_val lock"), m_bond(NO_BOND),
+m_transport_type(transport_type),  m_lock("net_device_val lock"), m_ring_t(NO_BOND),
 m_bond_xmit_hash_policy(XHP_LAYER_2), m_bond_fail_over_mac(0)
 {
 }
@@ -167,7 +167,7 @@ void net_device_val::configure(struct ifaddrs* ifa, struct rdma_cm_id* cma_id)
 	if (ifa->ifa_flags & IFF_MASTER || check_device_exist(m_base_name, BOND_DEVICE_FILE)) {
 		// bond device
 
-		verify_bonding_mode();
+		verify_ring_mode();
 		// get list of all slave devices
 		char slaves_list[IFNAMSIZ * MAX_SLAVES] = {0};
 		if (get_bond_slaves_name_list(m_base_name, slaves_list, sizeof(slaves_list))) {
@@ -201,7 +201,7 @@ void net_device_val::configure(struct ifaddrs* ifa, struct rdma_cm_id* cma_id)
 	bool up_and_active_slaves[m_slaves.size()];
 	memset(up_and_active_slaves, 0, sizeof(up_and_active_slaves));
 
-	if (m_bond == LAG_8023ad) {
+	if (m_ring_t == LAG_8023ad) {
 		get_up_and_active_slaves(up_and_active_slaves, m_slaves.size());
 	}
 
@@ -212,11 +212,11 @@ void net_device_val::configure(struct ifaddrs* ifa, struct rdma_cm_id* cma_id)
 		m_slaves[i]->p_L2_addr = create_L2_address(m_slaves[i]->if_name);
 		m_slaves[i]->is_active_slave = false;
 
-		if (m_bond == ACTIVE_BACKUP && strstr(active_slave, m_slaves[i]->if_name) != NULL){
+		if (m_ring_t == ACTIVE_BACKUP && strstr(active_slave, m_slaves[i]->if_name) != NULL){
 			m_slaves[i]->is_active_slave = true;
 		}
 
-		if (m_bond == LAG_8023ad) {
+		if (m_ring_t == LAG_8023ad) {
 			if (up_and_active_slaves[i]) {
 				m_slaves[i]->is_active_slave = true;
 			}
@@ -259,7 +259,7 @@ void net_device_val::configure(struct ifaddrs* ifa, struct rdma_cm_id* cma_id)
 	rdma_free_devices(pp_ibv_context_list);
 }
 
-void net_device_val::verify_bonding_mode()
+void net_device_val::verify_ring_mode()
 {
 	// this is a bond interface, lets get its mode.
 	char bond_mode_file_content[FILENAME_MAX];
@@ -273,14 +273,22 @@ void net_device_val::verify_bonding_mode()
 	sprintf(bond_mode_param_file, BONDING_MODE_PARAM_FILE, m_base_name);
 	sprintf(bond_failover_mac_param_file, BONDING_FAILOVER_MAC_PARAM_FILE, m_base_name);
 
-	if (priv_safe_read_file(bond_mode_param_file, bond_mode_file_content, FILENAME_MAX) > 0) {
+	if (safe_mce_sys().vma_mp_rq) {
+		m_ring_t = STRIDE;
+		vlog_printf(VLOG_WARNING,"******************************************************************\n");
+		vlog_printf(VLOG_WARNING,"Stride RQ is an experimental feature!\n");
+		vlog_printf(VLOG_WARNING,"You must use MLNX device that support this feature!\n");
+		vlog_printf(VLOG_WARNING,"*******************************************************************\n");
+		return;
+	} else if (priv_safe_read_file(bond_mode_param_file,
+								   bond_mode_file_content, FILENAME_MAX) > 0) {
 		char *bond_mode = NULL;
 		bond_mode = strtok(bond_mode_file_content, " ");
 		if (bond_mode) {
 			if (!strcmp(bond_mode, "active-backup")) {
-				m_bond = ACTIVE_BACKUP;
+				m_ring_t = ACTIVE_BACKUP;
 			} else if (strstr(bond_mode, "802.3ad")) {
-				m_bond = LAG_8023ad;
+				m_ring_t = LAG_8023ad;
 			}
 			if (priv_safe_read_file(bond_failover_mac_param_file, bond_failover_mac_file_content, FILENAME_MAX) > 0) {
 				if(strstr(bond_failover_mac_file_content, "0")){
@@ -318,7 +326,7 @@ void net_device_val::verify_bonding_mode()
 		vlog_printf(VLOG_DEBUG, "could not read bond xmit hash policy, staying with default (L2)\n");
 	}
 
-	if (m_bond == NO_BOND || m_bond_fail_over_mac > 1) {
+	if (m_ring_t == NO_BOND || m_bond_fail_over_mac > 1) {
 		vlog_printf(VLOG_WARNING,"******************************************************************************\n");
 		vlog_printf(VLOG_WARNING,"VMA doesn't support current bonding configuration of %s.\n", m_base_name);
 		vlog_printf(VLOG_WARNING,"The only supported bonding mode is \"802.3ad 4(#4)\" or \"active-backup(#1)\"\n");
@@ -502,7 +510,7 @@ ring* net_device_val::reserve_ring(IN resource_allocation_key key)
 	rings_hash_map_t::iterator ring_iter = m_h_ring_map.find(key);
 	if (m_h_ring_map.end() == ring_iter) {
 		nd_logdbg("Creating new RING for key %#x", key);
-
+		verify_ring_mode();
 		the_ring = create_ring();
 		if (!the_ring) {
 			return NULL;
@@ -748,7 +756,7 @@ void net_device_val_eth::configure(struct ifaddrs* ifa, struct rdma_cm_id* cma_i
 	create_br_address(m_name.c_str());
 
 	m_vlan = get_vlan_id_from_ifname(m_name.c_str());
-	if (m_vlan && m_bond != NO_BOND && m_bond_fail_over_mac == 1) {
+	if (m_vlan && m_ring_t != NO_BOND && m_bond_fail_over_mac == 1) {
 		vlog_printf(VLOG_WARNING, " ******************************************************************\n");
 		vlog_printf(VLOG_WARNING, "%s: vlan over bond while fail_over_mac=1 is not offloaded\n", m_name.c_str());
 		vlog_printf(VLOG_WARNING, " ******************************************************************\n");
@@ -775,23 +783,37 @@ ring* net_device_val_eth::create_ring()
 		active_slaves[i] = m_slaves[i]->is_active_slave;
 	}
 
-	 //TODO check if need to create bond ring even if slave count is 1
-	if (m_bond != NO_BOND) {
-		ring_bond_eth* ring;
-		try {
-			ring = new ring_bond_eth(m_local_addr, p_ring_info, slave_count, active_slaves, get_vlan(), m_bond, m_bond_xmit_hash_policy, m_mtu);
-		} catch (vma_error &error) {
+	//TODO check if need to create bond ring even if slave count is 1
+	try {
+		switch (m_ring_t) {
+		case NO_BOND: {
+			ring_eth* ring;
+			ring = new ring_eth(m_local_addr, p_ring_info, slave_count, true,
+								get_vlan(), m_mtu);
+			return ring;
+		}
+#ifndef DEFINED_IBV_OLD_VERBS_MLX_OFED
+		case STRIDE: {
+			ring_eth_mp* ring;
+			ring = new ring_eth_mp(m_local_addr, p_ring_info, slave_count,
+									   true, get_vlan(), m_mtu);
+			return ring;
+		}
+#endif
+		case ACTIVE_BACKUP: {
+		case LAG_8023ad:
+			ring_bond_eth* ring;
+			ring = new ring_bond_eth(m_local_addr, p_ring_info, slave_count,
+									 active_slaves, get_vlan(), m_ring_t,
+									 m_bond_xmit_hash_policy, m_mtu);
+			return ring;
+		}
+		default:
+			nd_logerr("Unknown ring type");
 			return NULL;
 		}
-		return ring;
-	} else {
-		ring_eth* ring;
-		try {
-			ring = new ring_eth(m_local_addr, p_ring_info, slave_count, true, get_vlan(), m_mtu);
-		} catch (vma_error &error) {
-			return NULL;
-		}
-		return ring;
+	} catch (vma_error &error) {
+		return NULL;
 	}
 }
 
@@ -877,10 +899,10 @@ ring* net_device_val_ib::create_ring()
 		active_slaves[i] = m_slaves[i]->is_active_slave;
 	}
 
-	if (m_bond != NO_BOND) {
+	if (m_ring_t != NO_BOND) {
 		ring_bond_ib* ring;
 		try {
-			ring = new ring_bond_ib(m_local_addr, p_ring_info, slave_count, active_slaves, m_pkey, m_bond, m_bond_xmit_hash_policy, m_mtu);
+			ring = new ring_bond_ib(m_local_addr, p_ring_info, slave_count, active_slaves, m_pkey, m_ring_t, m_bond_xmit_hash_policy, m_mtu);
 		} catch (vma_error &error) {
 			return NULL;
 		}

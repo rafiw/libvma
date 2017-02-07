@@ -37,7 +37,7 @@ class ring_simple;
 class ring_bond : public ring {
 
 public:
-	ring_bond(int count, net_device_val::bond_type type, net_device_val::bond_xmit_hash_policy bond_xmit_hash_policy, uint32_t mtu);
+	ring_bond(int count, net_device_val::ring_type type, net_device_val::bond_xmit_hash_policy bond_xmit_hash_policy, uint32_t mtu);
 	virtual	~ring_bond();
 	void			free_ring_bond_resources();
 	virtual int		request_notification(cq_type_t cq_type, uint64_t poll_sn);
@@ -84,7 +84,7 @@ private:
 	void			devide_buffers_helper(descq_t *rx_reuse, descq_t *buffer_per_ring);
 	void			devide_buffers_helper(mem_buf_desc_t *p_mem_buf_desc_list, mem_buf_desc_t** buffer_per_ring);
 
-	net_device_val::bond_type m_type;
+	net_device_val::ring_type m_type;
 	net_device_val::bond_xmit_hash_policy m_xmit_hash_policy;
 	lock_mutex_recursive	m_lock_ring_rx;
 	lock_mutex_recursive	m_lock_ring_tx;
@@ -94,7 +94,7 @@ private:
 class ring_bond_eth : public ring_bond
 {
 public:
-	ring_bond_eth(in_addr_t local_if, ring_resource_creation_info_t* p_ring_info, int count, bool active_slaves[], uint16_t vlan, net_device_val::bond_type type, net_device_val::bond_xmit_hash_policy bond_xmit_hash_policy, uint32_t mtu) throw (vma_error):
+	ring_bond_eth(in_addr_t local_if, ring_resource_creation_info_t* p_ring_info, int count, bool active_slaves[], uint16_t vlan, net_device_val::ring_type type, net_device_val::bond_xmit_hash_policy bond_xmit_hash_policy, uint32_t mtu) throw (vma_error):
 		ring_bond(count, type, bond_xmit_hash_policy, mtu){
 		create_slave_list(local_if, p_ring_info, active_slaves, vlan);
 		update_rx_channel_fds();
@@ -106,7 +106,7 @@ protected:
 class ring_bond_ib : public ring_bond
 {
 public:
-	ring_bond_ib(in_addr_t local_if, ring_resource_creation_info_t* p_ring_info, int count, bool active_slaves[], uint16_t pkey, net_device_val::bond_type type, net_device_val::bond_xmit_hash_policy bond_xmit_hash_policy, uint32_t mtu) throw (vma_error):
+	ring_bond_ib(in_addr_t local_if, ring_resource_creation_info_t* p_ring_info, int count, bool active_slaves[], uint16_t pkey, net_device_val::ring_type type, net_device_val::bond_xmit_hash_policy bond_xmit_hash_policy, uint32_t mtu) throw (vma_error):
 		ring_bond(count, type, bond_xmit_hash_policy, mtu){
 		create_slave_list(local_if, p_ring_info, active_slaves, pkey);
 		update_rx_channel_fds();

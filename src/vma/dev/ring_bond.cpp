@@ -53,7 +53,7 @@
 #undef  MODULE_HDR
 #define MODULE_HDR	 	MODULE_NAME "%d:%s() "
 
-ring_bond::ring_bond(int count, net_device_val::bond_type type, net_device_val::bond_xmit_hash_policy bond_xmit_hash_policy, uint32_t mtu) :
+ring_bond::ring_bond(int count, net_device_val::ring_type type, net_device_val::bond_xmit_hash_policy bond_xmit_hash_policy, uint32_t mtu) :
 ring(count, mtu), m_lock_ring_rx("ring_bond:lock_rx"), m_lock_ring_tx("ring_bond:lock_tx") {
 	m_bond_rings = new ring_simple*[count];
 	for (int i = 0; i < count; i++)

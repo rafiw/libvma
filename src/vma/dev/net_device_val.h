@@ -95,10 +95,11 @@ public:
 		RUNNING,
 		INVALID
 	};
-	enum bond_type {
+	enum ring_type {
 		NO_BOND,
 		ACTIVE_BACKUP,
 		LAG_8023ad,
+		STRIDE,
 	};
 	enum bond_xmit_hash_policy {
 		XHP_LAYER_2,
@@ -135,7 +136,7 @@ public:
 	void			ring_adapt_cq_moderation();
 	L2_address*		get_l2_address() { return m_p_L2_addr; };
 	L2_address* 		get_br_address() { return m_p_br_addr; };
-	bond_type 		get_is_bond() { return m_bond; };
+	ring_type 		get_is_bond() { return m_ring_t; };
 	bool 			update_active_slaves();
 	void 			register_to_ibverbs_events(event_handler_ibverbs *handler);
 	void 			unregister_to_ibverbs_events(event_handler_ibverbs *handler);
@@ -165,8 +166,8 @@ protected:
 	resource_allocation_key ring_key_redirection_reserve(IN resource_allocation_key key);
 	resource_allocation_key ring_key_redirection_release(IN resource_allocation_key key);
 
-	void verify_bonding_mode();
-	bond_type m_bond;
+	void verify_ring_mode();
+	ring_type m_ring_t;
 	bond_xmit_hash_policy m_bond_xmit_hash_policy;
 	int m_bond_fail_over_mac;
 
