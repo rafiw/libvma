@@ -1629,17 +1629,42 @@ void cq_mgr::mlx5_init_cq()
 void cq_mgr_mp::prep_ibv_cq(vma_ibv_cq_init_attr& attr)
 {
 	cq_mgr::prep_ibv_cq(attr);
-
+	attr.comp_mask = IBV_EXP_CQ_INIT_ATTR_RES_DOMAIN;
+	attr.res_domain = m_p_ring->get_res_domain();
 }
 
 int cq_mgr_mp::post_ibv_cq()
 {
+	struct ibv_exp_query_intf_params intf_params;
+	enum ibv_exp_query_intf_status intf_status;
+
+	intf_params.intf_scope = IBV_EXP_INTF_GLOBAL;
+	intf_params.intf_version = 1;
+	intf_params.intf = IBV_EXP_INTF_CQ;
+	intf_params.obj = m_p_ibv_cq;
+
+	m_cq_family1 = (struct ibv_exp_cq_family_v1*)
+			ibv_exp_query_intf(m_p_ib_ctx_handler->get_ibv_context(),
+					&intf_params, &intf_status);
+	if (!m_cq_family1) {
+		errno = ENAVAIL;
+		cq_logdbg("ibv_exp_query_intf failed with status %d",
+				intf_status);
+		return 1;
+	}
 	return 0;
 }
 
 cq_mgr_mp::~cq_mgr_mp()
 {
 
+	struct ibv_exp_release_intf_params params;
+
+	int ret = ibv_exp_release_intf(m_p_ib_ctx_handler->get_ibv_context(),
+							m_cq_family1, &params);
+	if (ret) {
+		cq_logdbg("ibv_exp_release_intf failed with status %d", ret);
+	}
 }
 
 #endif //DEFINED_IBV_OLD_VERBS_MLX_OFED

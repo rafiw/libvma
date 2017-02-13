@@ -2055,7 +2055,25 @@ ring_user_id_t ring_simple::generate_id(const address_t src_mac, const address_t
 void ring_eth_mp::create_resources(ring_resource_creation_info_t* p_ring_info,
 								   bool active)  throw (vma_error)
 {
+	struct ibv_exp_res_domain_init_attr res_domain_attr;
 
+	res_domain_attr.comp_mask = IBV_EXP_RES_DOMAIN_THREAD_MODEL |
+								IBV_EXP_RES_DOMAIN_MSG_MODEL;
+
+	// in VMA we are incharge of locks!
+	res_domain_attr.thread_model = IBV_EXP_THREAD_UNSAFE;
+
+	// currently have no affect
+	res_domain_attr.msg_model = IBV_EXP_MSG_HIGH_BW;
+
+	m_res_domain = ibv_exp_create_res_domain(
+			p_ring_info->p_ib_ctx->get_ibv_context(), &res_domain_attr);
+	if (!m_res_domain) {
+		ring_logdbg("failed creating resource domain");
+		throw_vma_exception("failed creating resource domain");
+		return;
+	}
+	// create ring simple resources
 	ring_simple::create_resources(p_ring_info, active);
 }
 
