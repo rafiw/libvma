@@ -232,7 +232,7 @@ int qp_mgr::configure(struct ibv_comp_channel* p_rx_comp_event_channel)
 	m_p_ahc_tail = NULL;
 	
 	if (m_p_cq_mgr_tx) {
-		m_p_cq_mgr_tx->add_qp_tx(this);
+		m_p_cq_mgr_tx->add_qp_mgr(this);
 	}
 
 	qp_logdbg("Created QP (num=%x) with %d tx wre and inline=%d and %d rx wre and %d sge", m_qp->qp_num, m_tx_num_wr, m_max_inline_data, m_rx_num_wr, rx_num_sge);
@@ -823,3 +823,11 @@ void qp_mgr_ib::update_pkey_index()
 		qp_logdbg("IB: Found correct pkey_index (%d) for pkey '%d'", m_pkey_index, m_pkey);
 	}
 }
+
+#ifndef DEFINED_IBV_OLD_VERBS_MLX_OFED
+
+qp_mgr_mp::~qp_mgr_mp()
+{
+
+}
+#endif

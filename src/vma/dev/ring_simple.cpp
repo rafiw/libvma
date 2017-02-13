@@ -2050,3 +2050,27 @@ ring_user_id_t ring_simple::generate_id(const address_t src_mac, const address_t
 	NOT_IN_USE(dst_port);
 	return 0;
 }
+
+#ifndef DEFINED_IBV_OLD_VERBS_MLX_OFED
+void ring_eth_mp::create_resources(ring_resource_creation_info_t* p_ring_info,
+								   bool active)  throw (vma_error)
+{
+
+	ring_simple::create_resources(p_ring_info, active);
+}
+
+qp_mgr* ring_eth_mp::create_qp_mgr(const ib_ctx_handler* ib_ctx, uint8_t port_num, struct ibv_comp_channel* p_rx_comp_event_channel) throw (vma_error)
+{
+	return new qp_mgr_mp(this, ib_ctx, port_num, p_rx_comp_event_channel,
+			get_tx_num_wr(), get_partition());
+
+}
+ring_eth_mp::~ring_eth_mp()
+{
+	struct ibv_exp_destroy_res_domain_attr attr;
+	int res = ibv_exp_destroy_res_domain(m_p_ring_info->p_ib_ctx->get_ibv_context(),
+			m_res_domain, &attr);
+	if (res)
+		ring_logdbg("call to ibv_exp_destroy_res_domain returned %d", res);
+}
+#endif

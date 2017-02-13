@@ -62,7 +62,10 @@ REVIEW
 class net_device_mgr;
 class ring;
 class qp_mgr;
+class qp_mgr_eth;
 class ring_simple;
+class ring_eth;
+class ring_eth_mp;
 
 #define LOCAL_IF_INFO_INVALID (local_if_info_t){0,0}
 
@@ -113,9 +116,26 @@ class cq_mgr
 	friend class ring_bond; // need to expose the m_n_global_sn only to ring
 
 public:
+	cq_mgr(ring_simple* p_ring, ib_ctx_handler* p_ib_ctx_handler, int cq_size,
+			struct ibv_comp_channel* p_comp_event_channel, bool is_rx,
+			bool config=true) :
+			m_p_ring(p_ring), m_b_is_rx(is_rx),
+			m_b_sysvar_is_rx_sw_csum_on(safe_mce_sys().rx_sw_csum),
+			m_comp_event_channel(p_comp_event_channel),
+			m_n_sysvar_rx_prefetch_bytes_before_poll(safe_mce_sys().rx_prefetch_bytes_before_poll),
+			m_n_sysvar_rx_prefetch_bytes(safe_mce_sys().rx_prefetch_bytes),
+			m_n_sysvar_rx_num_wr_to_post_recv(safe_mce_sys().rx_num_wr_to_post_recv),
+			m_n_sysvar_cq_poll_batch_max(safe_mce_sys().cq_poll_batch_max),
+			m_n_sysvar_qp_compensation_level(safe_mce_sys().qp_compensation_level),
+			m_b_sysvar_cq_keep_qp_full(safe_mce_sys().cq_keep_qp_full),
+			m_n_sysvar_progress_engine_wce_max(safe_mce_sys().progress_engine_wce_max),
+			m_p_next_rx_desc_poll(NULL), m_p_ib_ctx_handler(p_ib_ctx_handler) {
+		if (config)
+			configure(cq_size);
+	}
+	virtual ~cq_mgr();
 
-	cq_mgr(ring_simple* p_ring, ib_ctx_handler* p_ib_ctx_handler, int cq_size, struct ibv_comp_channel* p_comp_event_channel, bool is_rx);
-	~cq_mgr();
+	void configure(int cq_size);
 
 	ibv_cq *get_ibv_cq_hndl();
 	int	get_channel_fd();
@@ -178,7 +198,7 @@ public:
 	void	add_qp_rx(qp_mgr* qp);
 	void	del_qp_rx(qp_mgr *qp);
 	
-	void 	add_qp_tx(qp_mgr* qp);
+	void 	add_qp_mgr(qp_mgr* qp);
 
 	bool	reclaim_recv_buffers(descq_t *rx_reuse);
 	bool	reclaim_recv_buffers_no_lock(descq_t *rx_reuse);
@@ -208,12 +228,10 @@ private:
 	volatile uint32_t 		*m_cq_db;
 #endif // DEFINED_VMAPOLL
 	ring_simple*			m_p_ring;
-	ib_ctx_handler*			m_p_ib_ctx_handler;
 	bool				m_b_is_rx;
 	bool				m_b_is_rx_hw_csum_on;
 	const bool			m_b_sysvar_is_rx_sw_csum_on;
 	struct ibv_comp_channel*	m_comp_event_channel;
-	struct ibv_cq*			m_p_ibv_cq;
 	bool				m_b_notification_armed;
 	bool				m_b_was_drained;
 	uint32_t			m_n_wce_counter;
@@ -306,10 +324,40 @@ private:
 	inline void 	find_buff_dest_vma_if_ctx(mem_buf_desc_t * buff);
 
 	void		process_cq_element_log_helper(mem_buf_desc_t* p_mem_buf_desc, vma_ibv_wc* p_wce);
+protected:
+	struct ibv_cq*			m_p_ibv_cq;
+	ib_ctx_handler*			m_p_ib_ctx_handler;
+	virtual void prep_ibv_cq(vma_ibv_cq_init_attr& attr);
+	virtual int post_ibv_cq() { return 0;}
 };
 
 // Helper gunction to extract the Tx cq_mgr from the CQ event,
 // Since we have a single TX CQ comp channel for all cq_mgr's, it might not be the active_cq object
 cq_mgr* get_cq_mgr_from_cq_event(struct ibv_comp_channel* p_cq_channel);
 
+#ifndef DEFINED_IBV_OLD_VERBS_MLX_OFED
+class cq_mgr_mp : public cq_mgr
+{
+	struct ibv_exp_res_domain_init_attr res_domain_attr;
+public:
+
+	cq_mgr_mp(ring_eth_mp* p_ring, ib_ctx_handler* p_ib_ctx_handler,
+			int cq_size, struct ibv_comp_channel* p_comp_event_channel,
+			bool is_rx): cq_mgr((ring_simple*)p_ring, p_ib_ctx_handler,
+								cq_size , p_comp_event_channel, is_rx, false),
+								m_p_ring(p_ring), m_cq_family1(NULL) {
+		// must call from derive in order to call derived hooks
+		configure(cq_size);
+	};
+	~cq_mgr_mp();
+protected:
+	void add_qps(qp_mgr* rx_qp, qp_mgr* tx_qp);
+	virtual void prep_ibv_cq(vma_ibv_cq_init_attr& attr);
+	virtual int post_ibv_cq();
+private:
+	ring_eth_mp* m_p_ring;
+	struct ibv_exp_cq_family_v1* m_cq_family1;
+	qp_rec m_qp_rx_rec;
+};
+#endif // DEFINED_IBV_OLD_VERBS_MLX_OFED
 #endif //CQ_MGR_H

@@ -63,6 +63,7 @@ class buffer_pool;
 class cq_mgr;
 class ring;
 class ring_simple;
+class ring_eth_mp;
 
 #ifndef MAX_SUPPORTED_IB_INLINE_SIZE
 #define MAX_SUPPORTED_IB_INLINE_SIZE	884
@@ -113,7 +114,7 @@ public:
 
 	int			post_recv(mem_buf_desc_t* p_mem_buf_desc); // Post for receive a list of mem_buf_desc
 	int 			send(vma_ibv_send_wr* p_send_wqe);
-
+	// RAFI should this be virtual and overriden in qp_mgr_mp
 	uint32_t		get_max_inline_tx_data() const {return m_max_inline_data; }
 	int			get_port_num() const { return m_port_num; }
 #if _BullseyeCoverage
@@ -207,7 +208,7 @@ protected:
 
 	mgid_ref_count_map_t	m_attach_mc_grp_ref_cnt;
 
-	int 			configure(struct ibv_comp_channel* p_rx_comp_event_channel);
+	virtual int		configure(struct ibv_comp_channel* p_rx_comp_event_channel);
 	virtual int		prepare_ibv_qp(struct ibv_qp_init_attr& qp_init_attr) = 0;
 };
 
@@ -215,9 +216,14 @@ protected:
 class qp_mgr_eth : public qp_mgr
 {
 public:
-	qp_mgr_eth(const ring_simple* p_ring, const ib_ctx_handler* p_context, const uint8_t port_num,
-			struct ibv_comp_channel* p_rx_comp_event_channel, const uint32_t tx_num_wr, const uint16_t vlan) throw (vma_error) :
-		qp_mgr(p_ring, p_context, port_num, tx_num_wr), m_vlan(vlan) { if(configure(p_rx_comp_event_channel)) throw_vma_exception("failed creating qp"); };
+	qp_mgr_eth(const ring_simple* p_ring, const ib_ctx_handler* p_context,
+			const uint8_t port_num,
+			struct ibv_comp_channel* p_rx_comp_event_channel,
+			const uint32_t tx_num_wr, const uint16_t vlan, bool call_conf = true) throw (vma_error) :
+		qp_mgr(p_ring, p_context, port_num, tx_num_wr), m_vlan(vlan) {
+		if(call_conf && configure(p_rx_comp_event_channel))
+			throw_vma_exception("failed creating qp");
+	};
 
 	virtual void 		modify_qp_to_ready_state();
 	virtual uint16_t	get_partiton() const { return m_vlan; };
@@ -225,9 +231,35 @@ public:
 protected:
 	virtual int		prepare_ibv_qp(struct ibv_qp_init_attr& qp_init_attr);
 private:
+
 	const uint16_t 		m_vlan;
 };
 
+#ifndef DEFINED_IBV_OLD_VERBS_MLX_OFED
+class qp_mgr_mp : public qp_mgr_eth
+{
+public:
+	qp_mgr_mp(const ring_eth_mp* p_ring, const ib_ctx_handler* p_context,
+			const uint8_t port_num,
+			struct ibv_comp_channel* p_rx_comp_event_channel,
+			const uint32_t tx_num_wr, const uint16_t vlan) throw (vma_error) :
+				qp_mgr_eth((const ring_simple*)p_ring, p_context, port_num, p_rx_comp_event_channel,
+					tx_num_wr, vlan, false) {
+		m_p_ring = const_cast<ring_eth_mp*>(p_ring);
+		if (configure(p_rx_comp_event_channel))
+			throw_vma_exception("failed creating qp");
+	};
+	virtual ~qp_mgr_mp();
+	virtual int		configure(struct ibv_comp_channel* p_rx_comp_event_channel);
+private:
+	// override parent ring
+	ring_eth_mp* m_p_ring;
+	struct ibv_exp_wq *m_p_ibv_wq;
+	struct ibv_exp_wq_family* m_p_wq_family;
+	struct ibv_exp_rwq_ind_table *m_p_rwq_ind_tbl;
+	struct ibv_qp* m_p_rx_qp;
+};
+#endif
 
 class qp_mgr_ib : public qp_mgr
 {

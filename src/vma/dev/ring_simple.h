@@ -38,6 +38,8 @@
 #include "vma/util/utils.h"
 #include "vma/vma_extra.h"
 
+class ring_eth_mp;
+
 class ring_simple : public ring
 {
 public:
@@ -84,7 +86,7 @@ public:
 	transport_type_t	get_transport_type() const { return m_transport_type; }
 	virtual bool 		get_hw_dummy_send_support(ring_user_id_t id, vma_ibv_send_wr* p_send_wqe);
 	inline void 		convert_hw_time_to_system_time(uint64_t hwtime, struct timespec* systime) { m_p_cq_mgr_rx->convert_hw_time_to_system_time(hwtime, systime); }
-
+	struct ibv_comp_channel* get_tx_comp_event_channel() { return m_p_tx_comp_event_channel; }
 	friend class cq_mgr;
 	friend class qp_mgr;
 	friend class rfs;
@@ -95,7 +97,7 @@ public:
 
 protected:
 	virtual qp_mgr*		create_qp_mgr(const ib_ctx_handler* ib_ctx, uint8_t port_num, struct ibv_comp_channel* p_rx_comp_event_channel) = 0;
-	void			create_resources(ring_resource_creation_info_t* p_ring_info, bool active) throw (vma_error);
+	virtual void		create_resources(ring_resource_creation_info_t* p_ring_info, bool active) throw (vma_error);
 	// Internal functions. No need for locks mechanism.
 #ifdef DEFINED_VMAPOLL	
 	inline void 		vma_poll_process_recv_buffer(mem_buf_desc_t* p_rx_wc_buf_desc);
@@ -108,7 +110,6 @@ protected:
 	void			flow_udp_mc_del_all();
 	void			flow_tcp_del_all();
 	bool			request_more_tx_buffers(uint32_t count);
-	struct ibv_comp_channel* get_tx_comp_event_channel() { return m_p_tx_comp_event_channel; }
 	uint32_t		get_tx_num_wr() { return m_tx_num_wr; }
 	uint16_t		get_partition() { return m_partition; }
 #ifdef DEFINED_VMAPOLL		
@@ -168,11 +169,50 @@ private:
 class ring_eth : public ring_simple
 {
 public:
-	ring_eth(in_addr_t local_if, ring_resource_creation_info_t* p_ring_info, int count, bool active, uint16_t vlan, uint32_t mtu, ring* parent = NULL) throw (vma_error):
-		ring_simple(local_if, vlan, count, VMA_TRANSPORT_ETH, mtu, parent) { create_resources(p_ring_info, active); };
-
+	ring_eth(in_addr_t local_if, ring_resource_creation_info_t* p_ring_info,
+			int count, bool active, uint16_t vlan, uint32_t mtu,
+			ring* parent = NULL, bool call_create_res = true) throw (vma_error):
+		ring_simple(local_if, vlan, count, VMA_TRANSPORT_ETH, mtu, parent) {
+		if (call_create_res)
+			create_resources(p_ring_info, active);
+	};
+	virtual ~ring_eth(){}
 protected:
 	virtual qp_mgr* create_qp_mgr(const ib_ctx_handler* ib_ctx, uint8_t port_num, struct ibv_comp_channel* p_rx_comp_event_channel) throw (vma_error);
+};
+
+#ifndef DEFINED_IBV_OLD_VERBS_MLX_OFED
+class ring_eth_mp : public ring_eth
+{
+public:
+	ring_eth_mp(in_addr_t local_if,
+		ring_resource_creation_info_t* p_ring_info, int count, bool active,
+		uint16_t vlan, uint32_t mtu, ring* parent = NULL) throw (vma_error) :
+			ring_eth(local_if, p_ring_info, count, active, vlan, mtu, parent,
+					false),
+				m_strides_num(8), m_stride_size(7), m_res_domain(NULL),
+				m_p_ring_info(p_ring_info) {
+		// call function from derived not base
+		create_resources(p_ring_info, active);
+	};
+	virtual ~ring_eth_mp();
+	struct ibv_exp_res_domain* get_res_domain() {return m_res_domain;};
+	int get_strides_num() const {return m_strides_num;};
+	int get_stride_size() const {return m_stride_size;};
+
+#endif
+protected:
+	virtual qp_mgr* create_qp_mgr(const ib_ctx_handler* ib_ctx, uint8_t port_num,
+			struct ibv_comp_channel* p_rx_comp_event_channel) throw (vma_error);
+	void create_resources(ring_resource_creation_info_t* p_ring_info,
+			bool active) throw (vma_error);
+private:
+	// RAFI maybe should be per QP?
+	int m_strides_num;
+	int m_stride_size;
+	struct ibv_exp_res_domain *m_res_domain;
+	// needed for destructor
+	ring_resource_creation_info_t* m_p_ring_info;
 };
 
 class ring_ib : public ring_simple
