@@ -76,6 +76,7 @@ cq_mgr::cq_mgr(ring_simple* p_ring, ib_ctx_handler* p_ib_ctx_handler, int cq_siz
 	m_b_sysvar_is_rx_sw_csum_on(safe_mce_sys().rx_sw_csum), m_comp_event_channel(p_comp_event_channel),
 	m_n_sysvar_rx_num_wr_to_post_recv(safe_mce_sys().rx_num_wr_to_post_recv),
 	m_n_sysvar_qp_compensation_level(safe_mce_sys().qp_compensation_level), m_b_sysvar_cq_keep_qp_full(safe_mce_sys().cq_keep_qp_full)
+
 {
 	cq_logfunc("");
 
@@ -143,6 +144,7 @@ cq_mgr::cq_mgr(ring_simple* p_ring, ib_ctx_handler* p_ib_ctx_handler, int cq_siz
 		m_b_is_rx_hw_csum_on = vma_is_rx_hw_csum_supported(m_p_ib_ctx_handler->get_ibv_device_attr());
 		cq_logdbg("RX CSUM support = %d", m_b_is_rx_hw_csum_on);
 	}
+	m_rx_lkey = g_buffer_pool_rx->find_lkey_by_ib_ctx_thread_safe(m_p_ib_ctx_handler);
 
 	cq_logdbg("Created CQ as %s with fd[%d] and of size %d elements (ibv_cq_hndl=%p)", (m_b_is_rx?"Rx":"Tx"), get_channel_fd(), cq_size, m_p_ibv_cq);
 }
@@ -249,7 +251,7 @@ void cq_mgr::add_qp_rx(qp_mgr* qp)
 		uint32_t n_num_mem_bufs = m_n_sysvar_rx_num_wr_to_post_recv;
 		if (n_num_mem_bufs > qp_rx_wr_num)
 			n_num_mem_bufs = qp_rx_wr_num;
-		p_temp_desc_list = g_buffer_pool_rx->get_buffers_thread_safe(n_num_mem_bufs, m_p_ib_ctx_handler);
+		p_temp_desc_list = g_buffer_pool_rx->get_buffers_thread_safe(n_num_mem_bufs, m_rx_lkey);
 		if (p_temp_desc_list == NULL) {
 			static vlog_levels_t log_severity = VLOG_WARNING; // WARNING severity will be used only once - at the 1st time
 			VLOG_PRINTF_INFO(log_severity, "WARNING Out of mem_buf_desc from Rx buffer pool for qp_mgr qp_mgr initialization (qp=%p)", qp);
@@ -313,7 +315,7 @@ bool cq_mgr::request_more_buffers()
 
 	// Assume locked!
 	// Add an additional free buffer descs to RX cq mgr
-	p_temp_desc_list = g_buffer_pool_rx->get_buffers_thread_safe(m_n_sysvar_qp_compensation_level, m_p_ib_ctx_handler);
+	p_temp_desc_list = g_buffer_pool_rx->get_buffers_thread_safe(m_n_sysvar_qp_compensation_level, m_rx_lkey);
 	if (p_temp_desc_list == NULL) {
 		cq_logfunc("Out of mem_buf_desc from RX free pool for internal object pool");
 		return false;

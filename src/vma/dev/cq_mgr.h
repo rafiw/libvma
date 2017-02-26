@@ -260,6 +260,7 @@ private:
 	bool			m_b_notification_armed;
 	const uint32_t		m_n_sysvar_rx_num_wr_to_post_recv;
 	const uint32_t		m_n_sysvar_qp_compensation_level;
+	uint32_t		m_rx_lkey;
 	const bool		m_b_sysvar_cq_keep_qp_full;
 	descq_t			m_rx_pool;
 	int32_t			m_n_out_of_free_bufs_warning;
