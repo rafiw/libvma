@@ -119,6 +119,7 @@ protected:
 	qp_mgr*			m_p_qp_mgr;
 	struct cq_moderation_info m_cq_moderation_info;
 	cq_mgr*			m_p_cq_mgr_rx;
+	lock_spin_recursive	m_lock_ring_rx;
 private:
 	inline void		send_status_handler(int ret, vma_ibv_send_wr* p_send_wqe);
 	inline mem_buf_desc_t*	get_tx_buffers(uint32_t n_num_mem_bufs);
@@ -129,7 +130,6 @@ private:
 	void			save_l2_address(const L2_address* p_l2_addr) { delete_l2_address(); m_p_l2_addr = p_l2_addr->clone(); };
 	void			delete_l2_address() { if (m_p_l2_addr) delete m_p_l2_addr; m_p_l2_addr = NULL; };
 
-	lock_spin_recursive	m_lock_ring_rx;
 	lock_spin_recursive	m_lock_ring_tx;
 	cq_mgr*			m_p_cq_mgr_tx;
 	lock_mutex		m_lock_ring_tx_buf_wait;
