@@ -53,9 +53,12 @@ public:
 	uint8_t get_strides_num() const {return m_strides_num;};
 	uint8_t get_stride_size() const {return m_stride_size;};
 	uint32_t get_mem_lkey(ib_ctx_handler* ib_ctx) {return alloc.find_lkey_by_ib_ctx(ib_ctx);}
+	virtual int	drain_and_proccess(cq_type_t cq_type);
+	virtual int	poll_and_process_element_rx(uint64_t* p_cq_poll_sn, void* pv_fd_ready_array = NULL);
+	int		cyclic_buffer_read(vma_completion_mp_t &completion,
+					   size_t min, size_t max, int &flags);
 
 protected:
-	virtual int	drain_and_proccess(cq_type_t cq_type);
 	void		create_resources(ring_resource_creation_info_t* p_ring_info,
 					 bool active) throw (vma_error);
 	virtual		qp_mgr* create_qp_mgr(const ib_ctx_handler* ib_ctx,
@@ -70,8 +73,8 @@ private:
 	uint32_t			m_wq_count;
 	//save results that weren't returned yet
 	int				m_curr_wq;
-	uint64_t*			m_curr_d_addr;
-	uint64_t*			m_curr_h_ptr;
+	void*				m_curr_d_addr;
+	void*				m_curr_h_ptr;
 	size_t				m_curr_packets;
 	size_t				m_curr_size;
 	struct timespec			m_curr_hw_timestamp;
