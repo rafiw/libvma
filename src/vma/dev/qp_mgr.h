@@ -130,6 +130,7 @@ public:
 	class cq_mgr*       get_rx_cq_mgr() const { return m_p_cq_mgr_rx; }
 	ib_ctx_handler*     get_ib_ctx_handler() const { return m_p_ib_ctx_handler; }
 	uint32_t            get_rx_max_wr_num();
+	ibv_sge*            get_rx_sge() { return m_ibv_rx_sg_array;}
 	// This function can be replaced with a parameter during ring creation.
 	// chain of calls may serve as cache warm for dummy send feature.
 	inline bool         get_hw_dummy_send_support() {return m_hw_dummy_send_support; }
