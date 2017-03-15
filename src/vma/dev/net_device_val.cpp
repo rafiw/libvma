@@ -47,6 +47,7 @@
 #include "vma/proto/L2_address.h"
 #include "vma/dev/ib_ctx_handler_collection.h"
 #include "vma/dev/ring_simple.h"
+#include "vma/dev/ring_eth_mp.h"
 #include "vma/dev/ring_bond.h"
 #include "vma/sock/sock-redirect.h"
 #include "vma/dev/net_device_table_mgr.h"
@@ -785,9 +786,10 @@ ring* net_device_val_eth::create_ring()
 		}
 		return ring;
 	} else {
+		// temporary to test striding
 		ring_eth* ring;
 		try {
-			ring = new ring_eth(m_local_addr, p_ring_info, slave_count, true, get_vlan(), m_mtu);
+			ring = new ring_eth_mp(m_local_addr, p_ring_info, slave_count, true, get_vlan(), m_mtu);
 		} catch (vma_error &error) {
 			return NULL;
 		}
