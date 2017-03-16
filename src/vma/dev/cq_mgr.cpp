@@ -78,6 +78,7 @@ cq_mgr::cq_mgr(ring_simple* p_ring, ib_ctx_handler* p_ib_ctx_handler, int cq_siz
 	,m_b_is_rx_hw_csum_on(false)
 	,m_n_sysvar_cq_poll_batch_max(safe_mce_sys().cq_poll_batch_max)
 	,m_n_sysvar_progress_engine_wce_max(safe_mce_sys().progress_engine_wce_max)
+	// use local copy of stats by default (on rx cq get shared memory stats)
 	,m_p_cq_stat(&m_cq_stat_static)
 	,m_transport_type(m_p_ring->get_transport_type())
 	,m_p_next_rx_desc_poll(NULL)
@@ -124,9 +125,6 @@ void cq_mgr::configure(int cq_size)
 		cq_logpanic("ibv_create_cq failed (errno=%d %m)", errno);
 	}
 	BULLSEYE_EXCLUDE_BLOCK_END
-	if (post_ibv_cq()) {
-		cq_logpanic("post_ibv_cq failed (errno=%d %m)", errno);
-	}
 
 	switch (m_transport_type) {
 	case VMA_TRANSPORT_IB:
@@ -1524,3 +1522,4 @@ void cq_mgr::mlx5_init_cq()
 	m_mlx5_cqes = (volatile struct mlx5_cqe64 (*)[])(uintptr_t)m_mlx5_cq->active_buf->buf;
 }
 #endif // DEFINED_VMAPOLL
+

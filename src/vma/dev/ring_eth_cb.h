@@ -30,12 +30,14 @@
  * SOFTWARE.
  */
 
-#ifndef SRC_VMA_DEV_RING_ETH_MP_H_
-#define SRC_VMA_DEV_RING_ETH_MP_H_
+#ifndef SRC_VMA_DEV_RING_ETH_CB_H_
+#define SRC_VMA_DEV_RING_ETH_CB_H_
 
 #include <dev/ring_simple.h>
 
-#ifndef DEFINED_IBV_OLD_VERBS_MLX_OFED
+#ifdef HAVE_MP_RQ
+
+#define VMA_MP_RQ_BAD_PACKET		(1 << 31) // last bit
 
 class cq_mgr_mp;
 
@@ -68,9 +70,12 @@ private:
 	vma_allocator			alloc;
 	uint8_t				m_strides_num;
 	uint8_t				m_stride_size;
+	uint32_t			m_pow_strides_num;
 	struct ibv_exp_res_domain*	m_res_domain;
 	size_t				m_buffer_size;
 	uint32_t			m_wq_count;
+	uint32_t			m_stride_counter;
+	ibv_sge*			m_ibv_rx_sg_array;
 	//save results that weren't returned yet
 	int				m_curr_wq;
 	void*				m_curr_d_addr;
@@ -82,5 +87,5 @@ private:
 	inline void			reload_wq();
 };
 
-#endif /* DEFINED_IBV_OLD_VERBS_MLX_OFED */
-#endif /* SRC_VMA_DEV_RING_ETH_MP_H_ */
+#endif /* HAVE_MP_RQ */
+#endif /* SRC_VMA_DEV_RING_ETH_CB_H_ */

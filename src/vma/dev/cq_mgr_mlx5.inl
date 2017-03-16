@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2017 Mellanox Technologies, Ltd. All rights reserved.
+ * Copyright (c) 2001-2016 Mellanox Technologies, Ltd. All rights reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -30,33 +30,44 @@
  * SOFTWARE.
  */
 
-#ifndef SRC_VMA_DEV_CQ_MGR_MP_H_
-#define SRC_VMA_DEV_CQ_MGR_MP_H_
+
+#ifndef CQ_MGR_MLX5_INL_H
+#define CQ_MGR_MLX5_INL_H
 
 #include "dev/cq_mgr_mlx5.h"
-#include "dev/ring_eth_cb.h"
-#include "dev/qp_mgr_mp.h"
 
-#ifdef HAVE_MP_RQ
+#ifdef HAVE_INFINIBAND_MLX5_HW_H
 
-class cq_mgr_mp : public cq_mgr_mlx5
+/* Get CQE owner bit. */
+#define MLX5_CQE_OWNER(op_own) ((op_own) & MLX5_CQE_OWNER_MASK)
+
+/**/
+/** inlining functions can only help if they are implemented before their usage **/
+/**/
+inline volatile struct mlx5_cqe64* cq_mgr_mlx5::check_cqe(void)
 {
-public:
-	cq_mgr_mp(ring_eth_cb *p_ring, ib_ctx_handler *p_ib_ctx_handler,
-		  uint32_t cq_size, struct ibv_comp_channel *p_comp_event_channel,
-		  bool is_rx, uint8_t stride_size);
-	~cq_mgr_mp();
-	int		poll_mp_cq(uint16_t &size, uint32_t &strides_used,
-				   uint32_t &offset, uint32_t &flags,
-				   volatile struct mlx5_cqe64 *&cqe64);
-protected:
-	virtual void	prep_ibv_cq(vma_ibv_cq_init_attr &attr);
-	virtual void	add_qp_rx(qp_mgr *qp);
-private:
-	ring_eth_cb			*m_p_ring;
-	uint32_t			m_pow_stride_size;
-	static const uint32_t		UDP_OK_FLAGS;
-};
-#endif /* HAVE_MP_RQ */
+	volatile struct mlx5_cqe64 *cqe = &(*m_cqes)[m_cq_cons_index & (m_cq_size - 1)];
 
-#endif /* SRC_VMA_DEV_CQ_MGR_MP_H_ */
+	/*
+	 * CQE ownership is defined by Owner bit in the CQE.
+	 * The value indicating SW ownership is flipped every
+	 *  time CQ wraps around.
+	 * */
+	if (likely((MLX5_CQE_OPCODE(cqe->op_own)) != MLX5_CQE_INVALID) &&
+	    !((MLX5_CQE_OWNER(cqe->op_own)) ^ !!(m_cq_cons_index & m_cq_size))) {
+		return cqe;
+	}
+
+	return NULL;
+}
+
+inline void cq_mgr_mlx5::increment_hw_filds()
+{
+	++m_cq_cons_index;
+	wmb();
+	++m_rq->tail;
+	*m_cq_dbell = htonl(m_cq_cons_index & 0xffffff);
+}
+
+#endif //HAVE_INFINIBAND_MLX5_HW_H
+#endif//CQ_MGR_MLX5_INL_H

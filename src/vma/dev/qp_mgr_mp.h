@@ -36,7 +36,7 @@
 #include "dev/qp_mgr.h"
 #include "dev/ring_eth_cb.h"
 
-#ifndef DEFINED_IBV_OLD_VERBS_MLX_OFED
+#ifdef HAVE_MP_RQ
 
 class qp_mgr_mp : public qp_mgr_eth
 {
@@ -59,7 +59,7 @@ public:
 	virtual		~qp_mgr_mp();
 	virtual void	up();
 	int		post_recv(uint32_t sg_index, uint32_t num_of_sge);
-	int		get_strides_num() {return m_p_ring->get_strides_num();}
+	uint8_t		get_strides_num() {return m_p_ring->get_strides_num();}
 	int		get_wq_count() {return m_p_ring->get_wq_count();}
 protected:
 	virtual cq_mgr* init_rx_cq_mgr(struct ibv_comp_channel* p_rx_comp_event_channel);
@@ -71,6 +71,6 @@ private:
 	struct ibv_exp_wq_family*	m_p_wq_family;
 	struct ibv_exp_rwq_ind_table*	m_p_rwq_ind_tbl;
 };
-#endif
+#endif /* HAVE_MP_RQ */
 
 #endif /* SRC_VMA_DEV_QP_MGR_MP_H_ */
