@@ -30,45 +30,41 @@
  * SOFTWARE.
  */
 
-#ifndef SRC_VMA_DEV_QP_MGR_MP_H_
-#define SRC_VMA_DEV_QP_MGR_MP_H_
 
-#include "dev/qp_mgr.h"
-#include "dev/ring_eth_cb.h"
+#ifndef CQ_MGR_MLX5_INL_H
+#define CQ_MGR_MLX5_INL_H
 
-#ifdef HAVE_MP_RQ
+#include "dev/cq_mgr_mlx5.h"
 
-class qp_mgr_mp : public qp_mgr_eth
+#ifdef HAVE_INFINIBAND_MLX5_HW_H
+
+/**/
+/** inlining functions can only help if they are implemented before their usage **/
+/**/
+inline volatile struct mlx5_cqe64* cq_mgr_mlx5::check_cqe(void)
 {
-public:
-	qp_mgr_mp(const ring_eth_cb *p_ring, const ib_ctx_handler *p_context,
-		  const uint8_t port_num,
-		  struct ibv_comp_channel *p_rx_comp_event_channel,
-		  const uint32_t tx_num_wr, const uint16_t vlan)
-		  throw (vma_error) : qp_mgr_eth(p_ring,
-						 p_context, port_num,
-						 p_rx_comp_event_channel,
-						 tx_num_wr, vlan, false),
-		  m_p_wq(NULL), m_p_wq_family(NULL), m_p_rwq_ind_tbl(NULL) {
-		m_p_mp_ring = p_ring;
-		m_n_sysvar_rx_num_wr_to_post_recv = m_p_mp_ring->get_wq_count();
-		if (configure(p_rx_comp_event_channel))
-			throw_vma_exception("failed creating mp qp");
-	};
-	virtual		~qp_mgr_mp();
-	virtual void	up();
-	int		post_recv(uint32_t sg_index, uint32_t num_of_sge);
-	int		get_wq_count() {return m_p_mp_ring->get_wq_count();}
-protected:
-	virtual cq_mgr* init_rx_cq_mgr(struct ibv_comp_channel* p_rx_comp_event_channel);
-	virtual int	prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr);
-private:
-	// override parent ring
-	const ring_eth_cb*		m_p_mp_ring;
-	struct ibv_exp_wq*		m_p_wq;
-	struct ibv_exp_wq_family*	m_p_wq_family;
-	struct ibv_exp_rwq_ind_table*	m_p_rwq_ind_tbl;
-};
-#endif /* HAVE_MP_RQ */
+	volatile struct mlx5_cqe64 *cqe = &(*m_cqes)[m_cq_cons_index & (m_cq_size - 1)];
 
-#endif /* SRC_VMA_DEV_QP_MGR_MP_H_ */
+	/*
+	 * CQE ownership is defined by Owner bit in the CQE.
+	 * The value indicating SW ownership is flipped every
+	 *  time CQ wraps around.
+	 * */
+	if (likely((MLX5_CQE_OPCODE(cqe->op_own)) != MLX5_CQE_INVALID) &&
+	    !((MLX5_CQE_OWNER(cqe->op_own)) ^ !!(m_cq_cons_index & m_cq_size))) {
+		return cqe;
+	}
+
+	return NULL;
+}
+
+inline void cq_mgr_mlx5::increment_hw_filds()
+{
+	++m_cq_cons_index;
+	wmb();
+	++m_rq->tail;
+	*m_cq_dbell = htonl(m_cq_cons_index & 0xffffff);
+}
+
+#endif //HAVE_INFINIBAND_MLX5_HW_H
+#endif//CQ_MGR_MLX5_INL_H
