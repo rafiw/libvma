@@ -811,7 +811,8 @@ AC_CHECK_LIB([stdc++], [atoi])
 AC_CHECK_LIB([dl], [dlsym])
 AC_CHECK_LIB([rt], [clock_gettime])
 AC_CHECK_LIB([pthread], [pthread_create])
-#AC_CHECK_LIB([rdmacm], [rdma_create_id]) - doing it here requires rdmacm & libibverbs for udp_lat even on Ethernet only machines
+AC_CHECK_LIB([rdmacm], [rdma_create_id], [], [AC_MSG_FAILURE([rdmacm not found])])
+AC_CHECK_FUNCS_ONCE([rdma_lib_reset])
 #AC_CHECK_LIB([ibverbs], [ibv_cmd_poll_cq])
 
 have_libnl=no
@@ -828,9 +829,6 @@ else
 fi
 
 AM_CONDITIONAL([HAVE_LIBNL], [test "$have_libnl" = "yes"])
-
-AC_CHECK_LIB([rdmacm], [rdma_lib_reset],
-		[AC_DEFINE([DEFINED_RDMA_LIB_RESET], [1], [rdma_lib_reset enabled])], [])
 
 AC_CONFIG_FILES([
 		Makefile
