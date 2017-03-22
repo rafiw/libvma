@@ -57,6 +57,7 @@ ring_eth_mp::ring_eth_mp(in_addr_t local_if,
 	m_buffer_size = (1 << m_stride_size) * m_pow_strides_num * m_wq_count + MCE_ALIGNMENT;
 	memset(&m_curr_hw_timestamp, 0, sizeof(m_curr_hw_timestamp));
 	create_resources(p_ring_info, active);
+	m_ibv_rx_sg_array = m_p_qp_mgr->get_rx_sge();
 }
 
 void ring_eth_mp::create_resources(ring_resource_creation_info_t *p_ring_info,

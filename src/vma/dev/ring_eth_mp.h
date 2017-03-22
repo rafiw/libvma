@@ -79,6 +79,7 @@ private:
 	size_t				m_buffer_size;
 	uint32_t			m_wq_count;
 	uint32_t			m_stride_counter;
+	ibv_sge*			m_ibv_rx_sg_array;
 	//save results that weren't returned yet
 	int				m_curr_wq;
 	uint64_t			m_curr_d_addr;
