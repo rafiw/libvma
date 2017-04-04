@@ -38,6 +38,8 @@
 #ifdef HAVE_MP_RQ
 
 #define VMA_MP_RQ_BAD_PACKET		(1 << 31) // last bit
+#define MAX_MP_WQES			20 // limit max used memory
+#define MIN_MP_WQES			2
 
 class cq_mgr_mp;
 
@@ -47,7 +49,7 @@ public:
 	ring_eth_cb(in_addr_t local_if,
 		    ring_resource_creation_info_t *p_ring_info, int count,
 		    bool active, uint16_t vlan, uint32_t mtu,
-		    ring *parent = NULL) throw (vma_error);
+		    vma_cyclic_buffer_ring_attr *mp_ring, ring *parent = NULL) throw (vma_error);
 	virtual ~ring_eth_cb();
 	struct ibv_exp_res_domain* get_res_domain() {return m_res_domain;};
 	uint32_t get_wq_count() const {return m_wq_count;};
@@ -59,7 +61,6 @@ public:
 	virtual int	poll_and_process_element_rx(uint64_t* p_cq_poll_sn, void* pv_fd_ready_array = NULL);
 	int		cyclic_buffer_read(vma_completion_mp_t &completion,
 					   size_t min, size_t max, int &flags);
-
 protected:
 	void		create_resources(ring_resource_creation_info_t* p_ring_info,
 					 bool active) throw (vma_error);
@@ -67,6 +68,7 @@ protected:
 					      uint8_t port_num,
 					      struct ibv_comp_channel* p_rx_comp_event_channel) throw (vma_error);
 private:
+	vma_cyclic_buffer_ring_attr	m_cb_ring;
 	vma_allocator			alloc;
 	uint8_t				m_strides_num;
 	uint8_t				m_stride_size;

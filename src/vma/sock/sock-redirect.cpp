@@ -41,6 +41,7 @@
 #include <vma/proto/ip_frag.h>
 #include <vma/dev/buffer_pool.h>
 #include <vma/dev/ring_eth_cb.h>
+#include <vma/dev/ring_profile.h>
 #include <vma/event/event_handler_manager.h>
 #include <vma/event/vlogger_timer_handler.h>
 #include <vma/iomux/poll_call.h>
@@ -587,7 +588,18 @@ int vma_cyclic_buffer_read(int fd, struct vma_completion_mp_t *completion,
 		return -1;
 	}
 }
+
 #endif // HAVE_MP_RQ
+
+int vma_add_ring_profile(vma_ring_type_attr *profile, int *res)
+{
+	if (!g_p_ring_profile) {
+		vlog_printf(VLOG_DEBUG, "%s g_p_ring_profile is null\n",__func__);
+		return -1;
+	}
+	*res = g_p_ring_profile->add_profile(profile);
+	return 0;
+}
 
 //-----------------------------------------------------------------------------
 //  replacement functions
@@ -890,6 +902,7 @@ int getsockopt(int __fd, int __level, int __optname,
 
 		vma_api->get_socket_rings_num = vma_get_socket_rings_num;
 		vma_api->get_socket_rings_fds = vma_get_socket_rings_fds;
+		vma_api->vma_add_ring_profile = vma_add_ring_profile;
 #ifdef DEFINED_VMAPOLL
 		vma_api->free_vma_packets = vma_free_vma_packets;
 		vma_api->vma_poll = vma_poll;

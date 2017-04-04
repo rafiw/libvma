@@ -48,10 +48,6 @@
 #define cq_logerr      __log_info_err
 #define cq_logfuncall  __log_info_funcall
 
-/* Get struct mlx5_cq* from struct ibv_cq* */
-#define _to_mxxx(xxx, type)\
-	((struct mlx5_##type *)\
-	((uintptr_t)((void *) m_p_ibv_##xxx) - (uintptr_t)offsetof(struct mlx5_##type, ibv_##xxx)))
 
 cq_mgr_mlx5::cq_mgr_mlx5(ring_simple* p_ring, ib_ctx_handler* p_ib_ctx_handler,
 			 uint32_t cq_size, struct ibv_comp_channel* p_comp_event_channel,
@@ -420,10 +416,12 @@ void cq_mgr_mlx5::set_qp_rq(qp_mgr* qp)
 	struct mlx5_cq *mlx5_cq = _to_mxxx(cq, cq);
 	struct verbs_qp *vqp = (struct verbs_qp *)qp->m_qp;
 	struct mlx5_qp * mlx5_hw_qp = (struct mlx5_qp*)container_of(vqp, struct mlx5_qp, verbs_qp);
+
 	m_rq = &(mlx5_hw_qp->rq);
 	m_p_rq_wqe_idx_to_wrid = qp->m_rq_wqe_idx_to_wrid;
 	m_cq_dbell = mlx5_cq->dbrec;
 	m_cqes = (struct mlx5_cqe64 (*)[])(uintptr_t)mlx5_cq->active_buf->buf;
+	NOT_IN_USE(ibcq);
 }
 
 void cq_mgr_mlx5::add_qp_rx(qp_mgr* qp)
