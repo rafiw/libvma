@@ -92,6 +92,7 @@ void cq_mgr_mp::add_qp_rx(qp_mgr *qp)
 		throw_vma_exception("this qp is not of type qp_mgr_mp");
 	}
 	set_qp_rq(qp);
+	m_qp_rec.qp = qp;
 	if (mp_qp->post_recv(0, mp_qp->get_wq_count()) != 0) {
 		cq_logdbg("qp post recv failed");
 	} else {
@@ -106,14 +107,13 @@ void cq_mgr_mp::add_qp_rx(qp_mgr *qp)
  * if a bad checksum packet or a filler bit it will return VMA_MP_RQ_BAD_PACKET
  */
 int cq_mgr_mp::poll_mp_cq(uint16_t &size, uint32_t &strides_used,
-			  uint32_t &flags,
-			  volatile struct mlx5_cqe64 *&out_cqe64)
+			  uint32_t &flags, volatile struct mlx5_cqe64 *&out_cqe64)
 {
 	volatile struct mlx5_cqe64 *cqe= &(*m_cqes)[m_cq_cons_index & (m_cq_size - 1)];
 	if (likely((MLX5_CQE_OPCODE(cqe->op_own)) != MLX5_CQE_INVALID) &&
 		  !((MLX5_CQE_OWNER(cqe->op_own)) ^ !!(m_cq_cons_index & m_cq_size))) {
 		if (unlikely(MLX5_CQE_OPCODE(cqe->op_own) != MLX5_CQE_RESP_SEND)) {
-			cq_logdbg("Warning op_own is %x", cqe->op_own >> 4);
+			cq_logdbg("Warning op_own is %x", MLX5_CQE_OPCODE(cqe->op_own));
 			// optimize checks in ring by setting size non zero
 			size = 1;
 			return -1;
@@ -135,8 +135,11 @@ int cq_mgr_mp::poll_mp_cq(uint16_t &size, uint32_t &strides_used,
 		++m_rq->tail;
 		*m_cq_dbell = htonl(m_cq_cons_index & 0xffffff);
 		prefetch((void*)&(*m_cqes)[m_cq_cons_index & (m_cq_size - 1)]);
+	} else {
+		size = 0;
+		flags = 0;
 	}
-	cq_logfine("returning packet size %d, stride used %d offset %u "
+	cq_logfine("returning packet size %d, stride used %d "
 		   "flags %d", size, strides_used, flags);
 	return 0;
 }

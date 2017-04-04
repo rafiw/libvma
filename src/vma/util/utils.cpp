@@ -883,4 +883,3 @@ const char* vma_error::what() const throw()
 }
 
 ///////////////////////////////////////////
-

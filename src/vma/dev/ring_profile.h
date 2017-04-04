@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2016 Mellanox Technologies, Ltd. All rights reserved.
+ * Copyright (c) 2001-2017 Mellanox Technologies, Ltd. All rights reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -30,39 +30,49 @@
  * SOFTWARE.
  */
 
+#ifndef SRC_VMA_DEV_RING_PROFILE_H_
+#define SRC_VMA_DEV_RING_PROFILE_H_
 
-#ifndef DST_ENTRY_UDP_MC_H
-#define DST_ENTRY_UDP_MC_H
+#include <tr1/unordered_map>
+#include "net_device_val.h"
+#include "vma_extra.h"
 
-#include "vma/proto/dst_entry_udp.h"
+#define START_RING_INDEX	1 // beneath it's not defined
 
-class dst_entry_udp_mc : public dst_entry_udp
+class ring_profile;
+class ring_profiles_collection;
+
+
+typedef std::tr1::unordered_map<vma_ring_profile_key, ring_profile *> ring_profile_map_t;
+
+extern ring_profiles_collection *g_p_ring_profile;
+
+
+class ring_profile
 {
 public:
-	dst_entry_udp_mc(in_addr_t dst_ip, uint16_t dst_port, uint16_t src_port,
-			in_addr_t mc_tx_if_ip, bool mc_b_loopback, uint8_t mc_ttl,
-			int owner_fd, resource_allocation_key &ring_alloc_logic);
-	virtual ~dst_entry_udp_mc();
-
-	void 		set_mc_tx_if_ip(in_addr_t tx_if_ip);
-	void 		set_mc_loopback(bool b_mc_loopback);
-	void 		set_mc_ttl(uint8_t mc_ttl);
-#if _BullseyeCoverage
-    #pragma BullseyeCoverage off
-#endif
-	inline in_addr_t get_mc_tx_if_ip() const { return m_mc_tx_if_ip.get_in_addr(); };
-#if _BullseyeCoverage
-    #pragma BullseyeCoverage on
-#endif
-	virtual bool 	conf_l2_hdr_and_snd_wqe_ib();
-
-protected:
-	ip_address 	m_mc_tx_if_ip;
-	bool 		m_b_mc_loopback_enabled;
-
-	virtual bool 	get_net_dev_val();
-	virtual void	set_src_addr();
-	virtual bool 	resolve_net_dev(bool is_connect=false);
+	ring_profile();
+	ring_profile(struct vma_ring_type_attr *ring_desc);
+	vma_ring_type get_ring_type() {return m_ring_desc.ring_type;}
+	struct vma_ring_type_attr* get_desc(){return &m_ring_desc;}
+	const char* to_str(){ return m_str.c_str();}
+	const char* get_vma_ring_type_str();
+private:
+	void			create_string();
+	std::string		m_str;
+	vma_ring_type_attr	m_ring_desc;
 };
 
-#endif /* DST_ENTRY_UDP_MC_H */
+class ring_profiles_collection
+{
+public:
+	ring_profiles_collection();
+	~ring_profiles_collection();
+	vma_ring_profile_key	add_profile(vma_ring_type_attr *profile);
+	ring_profile*		get_profile(vma_ring_profile_key key);
+
+private:
+	ring_profile_map_t	m_profs_map;
+	vma_ring_profile_key	m_curr_idx;
+};
+#endif /* SRC_VMA_DEV_RING_PROFILE_H_ */

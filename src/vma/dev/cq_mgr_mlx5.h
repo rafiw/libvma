@@ -82,7 +82,6 @@ protected:
 private:
 	mem_buf_desc_t              *m_rx_hot_buffer;
 	uint64_t                    *m_p_rq_wqe_idx_to_wrid;
-	bool                        m_do_cleanup;
 };
 
 #endif //HAVE_INFINIBAND_MLX5_HW_H

@@ -34,10 +34,13 @@
 #define SRC_VMA_DEV_RING_ETH_CB_H_
 
 #include <dev/ring_simple.h>
+#include <dev/allocator.h>
 
 #ifdef HAVE_MP_RQ
 
 #define VMA_MP_RQ_BAD_PACKET		(1 << 31) // last bit
+#define MAX_MP_WQES			20 // limit max used memory
+#define MIN_MP_WQES			2
 
 enum mp_loop_result {
 	MP_LOOP_DRAINED,
@@ -53,7 +56,7 @@ public:
 	ring_eth_cb(in_addr_t local_if,
 		    ring_resource_creation_info_t *p_ring_info, int count,
 		    bool active, uint16_t vlan, uint32_t mtu,
-		    ring *parent = NULL) throw (vma_error);
+		    vma_cyclic_buffer_ring_attr *mp_ring, ring *parent = NULL) throw (vma_error);
 	virtual		~ring_eth_cb();
 	ibv_exp_res_domain* get_res_domain() const {return m_res_domain;};
 	uint32_t	get_wq_count() const {return m_wq_count;};
@@ -65,9 +68,8 @@ public:
 	uint32_t	get_mem_lkey(ib_ctx_handler* ib_ctx) const {return m_alloc.find_lkey_by_ib_ctx(ib_ctx);}
 	virtual int	drain_and_proccess(cq_type_t cq_type);
 	virtual int	poll_and_process_element_rx(uint64_t* p_cq_poll_sn, void* pv_fd_ready_array = NULL);
-	int		cyclic_buffer_read(vma_completion_mp_t &completion,
+	int		cyclic_buffer_read(vma_completion_cb_t &completion,
 					   size_t min, size_t max, int flags);
-
 protected:
 	void		create_resources(ring_resource_creation_info_t* p_ring_info,
 					 bool active) throw (vma_error);
@@ -75,6 +77,7 @@ protected:
 					      uint8_t port_num,
 					      struct ibv_comp_channel* p_rx_comp_event_channel) throw (vma_error);
 private:
+	vma_cyclic_buffer_ring_attr	m_cb_ring;
 	vma_allocator			m_alloc;
 	uint8_t				m_single_wqe_log_num_of_strides;
 	uint8_t				m_single_stride_log_num_of_bytes;
@@ -87,12 +90,12 @@ private:
 	uint32_t			m_all_wqes_used_strides;
 	uint32_t			m_curr_batch_starting_stride;
 	uint64_t			m_p_buffer_ptr;
-	//save results that weren't returned yet
+	// These members are used to store intermediate results before
+	// returning from the user's call to get the data.
 	int				m_curr_wq;
 	void*				m_curr_d_addr;
 	void*				m_curr_h_ptr;
 	size_t				m_curr_packets;
-	size_t				m_curr_size;
 	struct timespec			m_curr_hw_timestamp;
 	inline mp_loop_result		mp_loop(size_t limit);
 	inline bool			reload_wq();
