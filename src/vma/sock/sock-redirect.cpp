@@ -41,6 +41,7 @@
 #include <vma/proto/ip_frag.h>
 #include <vma/dev/buffer_pool.h>
 #include <vma/dev/ring_eth_cb.h>
+#include <vma/dev/ring_profile.h>
 #include <vma/event/event_handler_manager.h>
 #include <vma/event/vlogger_timer_handler.h>
 #include <vma/iomux/poll_call.h>
@@ -519,8 +520,6 @@ int vma_get_socket_rings_fds(int fd, int *ring_fds, int ring_fds_sz)
 extern "C"
 int vma_add_conf_rule(char *config_line)
 {
-	DO_GLOBAL_CTORS();
-
 	srdr_logdbg("adding conf rule: %s", config_line);
 
 	int ret = __vma_parse_config_line(config_line);
@@ -534,8 +533,6 @@ int vma_add_conf_rule(char *config_line)
 extern "C"
 int vma_thread_offload(int offload, pthread_t tid)
 {
-	DO_GLOBAL_CTORS();
-
 	if (g_p_fd_collection) {
 		g_p_fd_collection->offloading_rule_change_thread(offload, tid);
 	} else {
@@ -553,8 +550,6 @@ NOT_IN_USE(fd);
 NOT_IN_USE(log_level);
 	return 0;
 #else
-	DO_GLOBAL_CTORS();
-
 	if (g_p_fd_collection) {
 		g_p_fd_collection->statistics_print(fd, log_level::from_int(log_level));
 		return 0;
@@ -565,7 +560,7 @@ NOT_IN_USE(log_level);
 
 #ifdef HAVE_MP_RQ
 extern "C"
-int vma_cyclic_buffer_read(int fd, struct vma_completion_mp_t *completion,
+int vma_cyclic_buffer_read(int fd, struct vma_completion_cb_t *completion,
 			   size_t min, size_t max, int flags)
 {
 	cq_channel_info* p_cq_ch_info = g_p_fd_collection->get_cq_channel_fd(fd);
@@ -585,7 +580,18 @@ int vma_cyclic_buffer_read(int fd, struct vma_completion_mp_t *completion,
 		return -1;
 	}
 }
+
 #endif // HAVE_MP_RQ
+
+int vma_add_ring_profile(vma_ring_type_attr *profile, vma_ring_profile_key *res)
+{
+	if (!g_p_ring_profile) {
+		vlog_printf(VLOG_DEBUG, "%s g_p_ring_profile is null\n",__func__);
+		return -1;
+	}
+	*res = g_p_ring_profile->add_profile(profile);
+	return 0;
+}
 
 //-----------------------------------------------------------------------------
 //  replacement functions
@@ -876,6 +882,7 @@ int getsockopt(int __fd, int __level, int __optname,
 
 	if (__fd == -1 && __level == SOL_SOCKET && __optname == SO_VMA_GET_API &&
 	    __optlen && *__optlen >= sizeof(struct vma_api_t*)) {
+		DO_GLOBAL_CTORS();
 		srdr_logdbg("User request for VMA Extra API pointers");
 		struct vma_api_t *vma_api = new struct vma_api_t();
 		memset(vma_api, 0, sizeof(struct vma_api_t));
@@ -888,6 +895,7 @@ int getsockopt(int __fd, int __level, int __optname,
 
 		vma_api->get_socket_rings_num = vma_get_socket_rings_num;
 		vma_api->get_socket_rings_fds = vma_get_socket_rings_fds;
+		vma_api->vma_add_ring_profile = vma_add_ring_profile;
 #ifdef DEFINED_VMAPOLL
 		vma_api->free_vma_packets = vma_free_vma_packets;
 		vma_api->vma_poll = vma_poll;

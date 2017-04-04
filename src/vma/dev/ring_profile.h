@@ -30,37 +30,49 @@
  * SOFTWARE.
  */
 
+#ifndef SRC_VMA_DEV_RING_PROFILE_H_
+#define SRC_VMA_DEV_RING_PROFILE_H_
 
-#ifndef CQ_MGR_MLX5_INL_H
-#define CQ_MGR_MLX5_INL_H
+#include <tr1/unordered_map>
+#include "net_device_val.h"
+#include "vma_extra.h"
 
-#include "dev/cq_mgr_mlx5.h"
+#define START_RING_INDEX	1 // beneath it's not defined
 
-#ifdef HAVE_INFINIBAND_MLX5_HW_H
+class ring_profile;
+class ring_profiles_collection;
 
-/**/
-/** inlining functions can only help if they are implemented before their usage **/
-/**/
-inline volatile struct mlx5_cqe64* cq_mgr_mlx5::check_cqe(void)
+
+typedef std::tr1::unordered_map<vma_ring_profile_key, ring_profile *> ring_profile_map_t;
+
+extern ring_profiles_collection *g_p_ring_profile;
+
+
+class ring_profile
 {
-	volatile struct mlx5_cqe64 *cqe = &(*m_cqes)[m_cq_cons_index & (m_cq_size - 1)];
+public:
+	ring_profile();
+	ring_profile(struct vma_ring_type_attr *ring_desc);
+	vma_ring_type get_ring_type() {return m_ring_desc.ring_type;}
+	struct vma_ring_type_attr* get_desc(){return &m_ring_desc;}
+	const char* to_str(){ return m_str.c_str();}
+	const char* get_vma_ring_type_str();
+private:
+	void			create_string();
+	std::string		m_str;
+	vma_ring_type_attr	m_ring_desc;
+};
 
-	/*
-	 * CQE ownership is defined by Owner bit in the CQE.
-	 * The value indicating SW ownership is flipped every
-	 *  time CQ wraps around.
-	 * */
-	if (likely((MLX5_CQE_OPCODE(cqe->op_own)) != MLX5_CQE_INVALID) &&
-	    !((MLX5_CQE_OWNER(cqe->op_own)) ^ !!(m_cq_cons_index & m_cq_size))) {
-		++m_cq_cons_index;
-		wmb();
-		++m_rq->tail;
-		*m_cq_dbell = htonl(m_cq_cons_index & 0xffffff);
-		return cqe;
-	}
+class ring_profiles_collection
+{
+public:
+	ring_profiles_collection();
+	~ring_profiles_collection();
+	vma_ring_profile_key	add_profile(vma_ring_type_attr *profile);
+	ring_profile*		get_profile(vma_ring_profile_key key);
 
-	return NULL;
-}
-
-#endif //HAVE_INFINIBAND_MLX5_HW_H
-#endif//CQ_MGR_MLX5_INL_H
+private:
+	ring_profile_map_t	m_profs_map;
+	vma_ring_profile_key	m_curr_idx;
+};
+#endif /* SRC_VMA_DEV_RING_PROFILE_H_ */
