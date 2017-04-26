@@ -50,13 +50,15 @@ public:
 		    ring_resource_creation_info_t *p_ring_info, int count,
 		    bool active, uint16_t vlan, uint32_t mtu,
 		    vma_cyclic_buffer_ring_attr *mp_ring, ring *parent = NULL) throw (vma_error);
-	virtual ~ring_eth_cb();
-	struct ibv_exp_res_domain* get_res_domain() {return m_res_domain;};
-	uint32_t get_wq_count() const {return m_wq_count;};
-	void* get_mem_block() {return alloc.get_ptr();};
-	uint8_t get_strides_num() const {return m_strides_num;};
-	uint8_t get_stride_size() const {return m_stride_size;};
-	uint32_t get_mem_lkey(ib_ctx_handler* ib_ctx) {return alloc.find_lkey_by_ib_ctx(ib_ctx);}
+	virtual		~ring_eth_cb();
+	ibv_exp_res_domain* get_res_domain() const {return m_res_domain;};
+	uint32_t	get_wq_count() const {return m_wq_count;};
+	void*		get_mem_block() const {return alloc.get_ptr();};
+	uint8_t		get_strides_num() const {return m_strides_num;};
+	uint32_t	get_power_strides_num() const {return m_pow_strides_num;};
+	uint8_t		get_stride_size() const {return m_stride_size;};
+	uint32_t	get_power_stride_size() const {return m_pow_stride_size;};
+	uint32_t	get_mem_lkey(ib_ctx_handler* ib_ctx) const {return alloc.find_lkey_by_ib_ctx(ib_ctx);}
 	virtual int	drain_and_proccess(cq_type_t cq_type);
 	virtual int	poll_and_process_element_rx(uint64_t* p_cq_poll_sn, void* pv_fd_ready_array = NULL);
 	int		cyclic_buffer_read(vma_completion_mp_t &completion,
@@ -72,6 +74,7 @@ private:
 	vma_allocator			alloc;
 	uint8_t				m_strides_num;
 	uint8_t				m_stride_size;
+	uint32_t			m_pow_stride_size;
 	uint32_t			m_pow_strides_num;
 	struct ibv_exp_res_domain*	m_res_domain;
 	size_t				m_buffer_size;

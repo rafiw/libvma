@@ -572,7 +572,6 @@ int vma_cyclic_buffer_read(int fd, struct vma_completion_mp_t *completion,
 {
 	cq_channel_info* p_cq_ch_info = g_p_fd_collection->get_cq_channel_fd(fd);
 	if (p_cq_ch_info) {
-		//RAFI remove the dynamic cast some how
 		ring_eth_cb* p_ring = (ring_eth_cb *)p_cq_ch_info->get_ring();
 		if (likely(p_ring && p_ring->is_mp_ring())) {
 			return p_ring->cyclic_buffer_read(*completion, min, max,

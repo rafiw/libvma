@@ -159,7 +159,7 @@ void cq_mgr::configure(int cq_size)
 	cq_logdbg("Created CQ as %s with fd[%d] and of size %d elements (ibv_cq_hndl=%p)", (m_b_is_rx?"Rx":"Tx"), get_channel_fd(), cq_size, m_p_ibv_cq);
 }
 
-void cq_mgr::prep_ibv_cq(vma_ibv_cq_init_attr& attr)
+void cq_mgr::prep_ibv_cq(vma_ibv_cq_init_attr& attr) const
 {
 	if (m_p_ib_ctx_handler->get_ctx_time_converter_status()) {
 		init_vma_ibv_cq_init_attr(&attr);

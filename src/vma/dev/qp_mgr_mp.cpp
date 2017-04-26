@@ -50,25 +50,44 @@
 
 cq_mgr* qp_mgr_mp::init_rx_cq_mgr(struct ibv_comp_channel* p_rx_comp_event_channel)
 {
-	uint32_t cq_size = align32pow2(((1 << m_p_ring->get_strides_num()) *
-				       m_p_ring->get_wq_count()));
-	return new cq_mgr_mp(m_p_ring, m_p_ib_ctx_handler, cq_size,
+	// CQ size should be aligned to power of 2 due to PRM
+	// also it size is the max CQs we can hold at once
+	// this equals to number of strides in WQe * WQ's
+	uint32_t cq_size = align32pow2((m_p_mp_ring->get_power_strides_num() *
+					m_p_mp_ring->get_wq_count()));
+	return new cq_mgr_mp(m_p_mp_ring, m_p_ib_ctx_handler, cq_size,
 			     p_rx_comp_event_channel, true,
-			     m_p_ring->get_stride_size());
+			     m_p_mp_ring->get_power_stride_size());
 }
 
 int qp_mgr_mp::prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr)
 {
-	vma_ibv_device_attr& r_ibv_dev_attr =
-			m_p_ib_ctx_handler->get_ibv_device_attr();
 	NOT_IN_USE(qp_init_attr);
+	struct ibv_exp_rx_hash_conf rx_hash_conf;
+	struct ibv_exp_query_intf_params query_intf_params;
+	struct ibv_exp_release_intf_params rel_intf_params;
+	struct ibv_exp_rwq_ind_table_init_attr rwq_ind_table_init_attr;
+	struct ibv_exp_qp_init_attr exp_qp_init_attr;
+	enum ibv_exp_query_intf_status intf_status;
+	uint32_t lkey;
+	uint8_t *ptr;
+	uint32_t stride_size, strides_num, size;
+	uint8_t toeplitz_key[] = { 0x6d, 0x5a, 0x56, 0xda, 0x25, 0x5b, 0x0e, 0xc2,
+				   0x41, 0x67, 0x25, 0x3d, 0x43, 0xa3, 0x8f, 0xb0,
+				   0xd0, 0xca, 0x2b, 0xcb, 0xae, 0x7b, 0x30, 0xb4,
+				   0x77, 0xcb, 0x2d, 0xa3, 0x80, 0x30, 0xf2, 0x0c,
+				   0x6a, 0x42, 0xb7, 0x3b, 0xbe, 0xac, 0x01, 0xfa };
+	const int TOEPLITZ_RX_HASH_KEY_LEN =
+			sizeof(toeplitz_key)/sizeof(toeplitz_key[0]);
 	// create RX resources
 	// create WQ
+	vma_ibv_device_attr& r_ibv_dev_attr =
+			m_p_ib_ctx_handler->get_ibv_device_attr();
 	struct ibv_exp_wq_init_attr wq_init_attr;
 	memset(&wq_init_attr, 0, sizeof(wq_init_attr));
 
 	wq_init_attr.wq_type = IBV_EXP_WQT_RQ;
-	wq_init_attr.max_recv_wr = m_p_ring->get_wq_count();
+	wq_init_attr.max_recv_wr = m_p_mp_ring->get_wq_count();
 	wq_init_attr.max_recv_sge = 1;
 	wq_init_attr.pd = m_p_ib_ctx_handler->get_ibv_pd();
 	wq_init_attr.cq = m_p_cq_mgr_rx->get_ibv_cq_hndl();
@@ -78,14 +97,14 @@ int qp_mgr_mp::prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr)
 		wq_init_attr.vlan_offloads |= IBV_EXP_RECEIVE_WQ_CVLAN_STRIP;
 	}
 	wq_init_attr.comp_mask |= IBV_EXP_CREATE_WQ_RES_DOMAIN;
-	wq_init_attr.res_domain = m_p_ring->get_res_domain();
+	wq_init_attr.res_domain = m_p_mp_ring->get_res_domain();
 
 	wq_init_attr.comp_mask |= IBV_EXP_CREATE_WQ_MP_RQ;
 	wq_init_attr.mp_rq.use_shift = IBV_EXP_MP_RQ_NO_SHIFT;
 	wq_init_attr.mp_rq.single_wqe_log_num_of_strides =
-					m_p_ring->get_strides_num();
+				m_p_mp_ring->get_strides_num();
 	wq_init_attr.mp_rq.single_stride_log_num_of_bytes =
-					m_p_ring->get_stride_size();
+				m_p_mp_ring->get_stride_size();
 
 	m_p_wq = ibv_exp_create_wq(m_p_ib_ctx_handler->get_ibv_context(),
 			&wq_init_attr);
@@ -103,27 +122,24 @@ int qp_mgr_mp::prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr)
 
 	if (ibv_exp_modify_wq(m_p_wq, &wq_attr)) {
 		qp_logerr("failed changing WQ state (errno=%d %m)", errno);
-		return -1;
+		goto err;
 	}
 
-	struct ibv_exp_query_intf_params intf_params;
-	enum ibv_exp_query_intf_status intf_status = IBV_EXP_INTF_STAT_OK;
+	intf_status = IBV_EXP_INTF_STAT_OK;
 
-	memset(&intf_params, 0, sizeof(intf_params));
-	intf_params.intf_scope = IBV_EXP_INTF_GLOBAL;
-	intf_params.intf = IBV_EXP_INTF_WQ;
-	intf_params.obj = m_p_wq;
+	memset(&query_intf_params, 0, sizeof(query_intf_params));
+	query_intf_params.intf_scope = IBV_EXP_INTF_GLOBAL;
+	query_intf_params.intf = IBV_EXP_INTF_WQ;
+	query_intf_params.obj = m_p_wq;
 	m_p_wq_family = (struct ibv_exp_wq_family *)
 			ibv_exp_query_intf(m_p_ib_ctx_handler->get_ibv_context(),
-					   &intf_params, &intf_status);
+					   &query_intf_params, &intf_status);
 	if (!m_p_wq_family) {
 		qp_logerr("ibv_exp_query_intf failed (errno=%m) status %d ",
 			errno, intf_status);
-		return -1;
+		goto err;
 	}
 	// create indirect table
-	struct ibv_exp_rwq_ind_table_init_attr rwq_ind_table_init_attr;
-
 	rwq_ind_table_init_attr.pd = m_p_ib_ctx_handler->get_ibv_pd();
 	rwq_ind_table_init_attr.log_ind_tbl_size = 0; // ignore hash
 	rwq_ind_table_init_attr.ind_tbl = &m_p_wq;
@@ -133,36 +149,25 @@ int qp_mgr_mp::prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr)
 					     &rwq_ind_table_init_attr);
 	if (!m_p_rwq_ind_tbl) {
 		qp_logerr("ibv_exp_create_rwq_ind_table failed (errno=%d %m)", errno);
-		return -1;
+		goto err;
 	}
 
 	// Create rx_hash_conf
-	struct ibv_exp_rx_hash_conf rx_hash_conf;
-
 	memset(&rx_hash_conf, 0, sizeof(rx_hash_conf));
-	const int TOEPLITZ_RX_HASH_KEY_LEN = 40;
-	uint8_t toeplitz_key[] = { 0x6d, 0x5a, 0x56, 0xda, 0x25, 0x5b, 0x0e, 0xc2,
-				   0x41, 0x67, 0x25, 0x3d, 0x43, 0xa3, 0x8f, 0xb0,
-				   0xd0, 0xca, 0x2b, 0xcb, 0xae, 0x7b, 0x30, 0xb4,
-				   0x77, 0xcb, 0x2d, 0xa3, 0x80, 0x30, 0xf2, 0x0c,
-				   0x6a, 0x42, 0xb7, 0x3b, 0xbe, 0xac, 0x01, 0xfa };
 	rx_hash_conf.rx_hash_function = IBV_EXP_RX_HASH_FUNC_TOEPLITZ;
 	rx_hash_conf.rx_hash_key_len = TOEPLITZ_RX_HASH_KEY_LEN;
 	rx_hash_conf.rx_hash_key = toeplitz_key;
 	rx_hash_conf.rx_hash_fields_mask = IBV_EXP_RX_HASH_DST_PORT_UDP;
 	rx_hash_conf.rwq_ind_tbl = m_p_rwq_ind_tbl;
 
-	struct ibv_exp_qp_init_attr exp_qp_init_attr;
 	memset(&exp_qp_init_attr, 0, sizeof(exp_qp_init_attr));
 
 	exp_qp_init_attr.comp_mask = IBV_EXP_QP_INIT_ATTR_CREATE_FLAGS |
 				     IBV_EXP_QP_INIT_ATTR_PD |
 				     IBV_EXP_QP_INIT_ATTR_RX_HASH |
-				     IBV_EXP_QP_INIT_ATTR_RES_DOMAIN |
-				     IBV_EXP_QP_INIT_ATTR_PORT;
+				     IBV_EXP_QP_INIT_ATTR_RES_DOMAIN;
 	exp_qp_init_attr.rx_hash_conf = &rx_hash_conf;
-	exp_qp_init_attr.port_num = 1;
-	exp_qp_init_attr.res_domain = m_p_ring->get_res_domain();
+	exp_qp_init_attr.res_domain = m_p_mp_ring->get_res_domain();
 	exp_qp_init_attr.pd = m_p_ib_ctx_handler->get_ibv_pd();
 	exp_qp_init_attr.qp_type = IBV_QPT_RAW_PACKET;
 	// Create the QP
@@ -172,39 +177,56 @@ int qp_mgr_mp::prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr)
 	BULLSEYE_EXCLUDE_BLOCK_START
 	if (!m_qp) {
 		qp_logerr("ibv_create_qp failed (errno=%d %m)", errno);
-		return -1;
+		goto err;
 	}
-
+	BULLSEYE_EXCLUDE_BLOCK_END
 	// initlize the sge, the same sg will be used for all operations
-	uint8_t *ptr = (uint8_t *)(((unsigned long)m_p_ring->get_mem_block()) &
-				   ~MCE_ALIGNMENT);
-	int stride_size = 1 << m_p_ring->get_stride_size();
-	int strides_num = 1 << m_p_ring->get_strides_num();
-	int size = stride_size * strides_num;
+	ptr = (uint8_t *)(((unsigned long)m_p_mp_ring->get_mem_block()));
+	stride_size = m_p_mp_ring->get_power_stride_size();
+	strides_num = m_p_mp_ring->get_power_strides_num();
+	size = stride_size * strides_num;
 
-	uint32_t lkey = m_p_ring->get_mem_lkey(m_p_ib_ctx_handler);
+	lkey = m_p_mp_ring->get_mem_lkey(m_p_ib_ctx_handler);
 	for (uint32_t i = 0; i < m_n_sysvar_rx_num_wr_to_post_recv; i++) {
 		m_ibv_rx_sg_array[i].addr = (uint64_t)ptr;
 		m_ibv_rx_sg_array[i].length = size;
 		m_ibv_rx_sg_array[i].lkey = lkey;
-		qp_logdbg("sge %u addr %p size %d lkey %u", i, ptr, size, lkey);
+		qp_logdbg("sge %u addr %p - %p size %d lkey %u",
+			  i, ptr, ptr + size, size, lkey);
 		ptr += size;
 	}
 	m_skip_tx_release = true;
 	return 0;
+err:
+	if (m_qp) {
+		IF_VERBS_FAILURE(ibv_destroy_qp(m_qp)) {
+				qp_logerr("TX QP destroy failure (errno = %d %m)", -errno);
+		} ENDIF_VERBS_FAILURE;
+	}
+	if (m_p_rwq_ind_tbl) {
+		IF_VERBS_FAILURE(ibv_exp_destroy_rwq_ind_table(m_p_rwq_ind_tbl)) {
+				qp_logerr("ibv_exp_destroy_rwq_ind_table "
+					 "failed (errno = %d %m)", -errno);
+		} ENDIF_VERBS_FAILURE;
+	}
+	if (m_p_wq_family) {
+		memset(&rel_intf_params, 0, sizeof(rel_intf_params));
+		IF_VERBS_FAILURE(ibv_exp_release_intf(m_p_ib_ctx_handler->get_ibv_context(),
+				m_p_wq_family, &rel_intf_params)) {
+			qp_logerr("ibv_exp_release_intf failed (errno = %d %m)", -errno);
+		} ENDIF_VERBS_FAILURE;
+	}
+	if (m_p_wq) {
+		IF_VERBS_FAILURE(ibv_exp_destroy_wq(m_p_wq)) {
+			qp_logerr("ibv_exp_destroy_wq failed (errno = %d %m)", -errno);
+		} ENDIF_VERBS_FAILURE;
+	}
+	return -1;
 }
 
 
 void qp_mgr_mp::up()
 {
-	// Add buffers
-	qp_logdbg("QP current state: %d", priv_ibv_query_qp_state(m_qp));
-	release_tx_buffers();
-
-	/* clean any link to completions with error we might have */
-	m_n_unsignaled_count = 0;
-	m_p_last_tx_mem_buf_desc = NULL;
-
 	m_p_cq_mgr_rx->add_qp_rx(this);
 }
 
@@ -213,7 +235,7 @@ int qp_mgr_mp::post_recv(uint32_t sg_index, uint32_t num_of_sge)
 	// this function always return 0
 	qp_logdbg("calling recv_burst with index %d, num_of_sge %d",
 		  sg_index, num_of_sge);
-	if (unlikely(num_of_sge + sg_index > m_p_ring->get_wq_count())) {
+	if (unlikely(num_of_sge + sg_index > m_p_mp_ring->get_wq_count())) {
 		qp_logdbg("not enough WQE to post");
 		return -1;
 	}

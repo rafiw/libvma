@@ -52,20 +52,20 @@
 const uint32_t cq_mgr_mp::UDP_OK_FLAGS = IBV_EXP_CQ_RX_IP_CSUM_OK |
 					 IBV_EXP_CQ_RX_TCP_UDP_CSUM_OK;
 
-cq_mgr_mp::cq_mgr_mp(ring_eth_cb *p_ring, ib_ctx_handler *p_ib_ctx_handler,
+cq_mgr_mp::cq_mgr_mp(const ring_eth_cb *p_ring, ib_ctx_handler *p_ib_ctx_handler,
 		     uint32_t cq_size,
 		     struct ibv_comp_channel *p_comp_event_channel,
-		     bool is_rx, uint8_t stride_size):
+		     bool is_rx, uint32_t stride_size):
 		     cq_mgr_mlx5((ring_simple*)p_ring, p_ib_ctx_handler,
 				 cq_size , p_comp_event_channel, is_rx, false),
 		     m_p_ring(p_ring)
 {
 	// must call from derive in order to call derived hooks
-	m_pow_stride_size = (1 << stride_size);
+	m_pow_stride_size = stride_size;
 	configure(cq_size);
 }
 
-void cq_mgr_mp::prep_ibv_cq(vma_ibv_cq_init_attr &attr)
+void cq_mgr_mp::prep_ibv_cq(vma_ibv_cq_init_attr &attr) const
 {
 	cq_mgr::prep_ibv_cq(attr);
 	attr.comp_mask |= IBV_EXP_CQ_INIT_ATTR_RES_DOMAIN;
@@ -74,7 +74,7 @@ void cq_mgr_mp::prep_ibv_cq(vma_ibv_cq_init_attr &attr)
 
 void cq_mgr_mp::add_qp_rx(qp_mgr *_qp)
 {
-	cq_logdbg("qp_mgr=%p", _qp);
+	cq_logdbg("qp_mp_mgr=%p", _qp);
 	qp_mgr_mp* qp = dynamic_cast<qp_mgr_mp *>(_qp);
 
 	if (qp == NULL) {

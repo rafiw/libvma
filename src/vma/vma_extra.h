@@ -177,13 +177,16 @@ enum vma_completion_mp_mask {
 };
 
 /**
- * @param comp_mask attributes you want to get see @ref vma_completion_mp_mask
- * @param payload_ptr pointer to user data no including user header
+ * @param comp_mask attributes you want to get from @ref vma_cyclic_buffer_read.
+ * 	see @ref vma_completion_mp_mask
+ * @param payload_ptr pointer to user data not including user header
  * @param payload_length size of payload_ptr
- * @param packets  how many packets arrived
- * @param headers_ptr points to the user header defined when creating the ring
+ * @param packets how many packets arrived
+ * @param headers_ptr points to the user header section within the payload defined when creating the ring
+ * 	@note currently same as @param payload_ptr
  * @param headers_ptr_length headers_ptr length
- * @param hw_timestamp the HW time stamp of the first packet arrived
+ *  	@note currently same as @param payload_length
+ * @param hw_timestamp the HW time stamp of the first packet arrived within the batch
  */
 struct vma_completion_mp_t {
 	uint32_t	comp_mask;
@@ -217,6 +220,7 @@ enum vma_ring_alloc_logic_attr_comp_mask {
 	VMA_RING_ALLLOC_MASK_RING_INGRESS = (1 << 3),
 	VMA_RING_ALLLOC_MASK_RING_ENGRESS = (1 << 4),
 };
+
 /**
  * @brief pass this struct to vma using setsockopt with @ref SO_VMA_RING_ALLOC_LOGIC
  * 	to set the allocation logic of this FD when he requests a ring.
@@ -556,7 +560,7 @@ struct __attribute__ ((packed)) vma_api_t {
 	 * @param min min number of packet to return, if not available
 	 * 	will return 0 packets
 	 * @param max max packets to return
-	 * @param flags can be MSG_DONTWAIT, MSG_WAITALL, MSG_PEEK
+	 * @param flags can be MSG_DONTWAIT, MSG_WAITALL (not yet supported), MSG_PEEK (not yet supported)
 	 * @return 0 on success -1 on failure
 	 */
 	int (*vma_cyclic_buffer_read)(int fd,

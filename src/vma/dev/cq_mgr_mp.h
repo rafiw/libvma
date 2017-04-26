@@ -42,18 +42,18 @@
 class cq_mgr_mp : public cq_mgr_mlx5
 {
 public:
-	cq_mgr_mp(ring_eth_cb *p_ring, ib_ctx_handler *p_ib_ctx_handler,
+	cq_mgr_mp(const ring_eth_cb *p_ring, ib_ctx_handler *p_ib_ctx_handler,
 		  uint32_t cq_size, struct ibv_comp_channel *p_comp_event_channel,
-		  bool is_rx, uint8_t stride_size);
+		  bool is_rx, uint32_t stride_size);
 	~cq_mgr_mp();
 	int		poll_mp_cq(uint16_t &size, uint32_t &strides_used,
 				   uint32_t &offset, uint32_t &flags,
 				   volatile struct mlx5_cqe64 *&cqe64);
 protected:
-	virtual void	prep_ibv_cq(vma_ibv_cq_init_attr &attr);
+	virtual void	prep_ibv_cq(vma_ibv_cq_init_attr &attr) const;
 	virtual void	add_qp_rx(qp_mgr *qp);
 private:
-	ring_eth_cb			*m_p_ring;
+	const ring_eth_cb		*m_p_ring;
 	uint32_t			m_pow_stride_size;
 	static const uint32_t		UDP_OK_FLAGS;
 };

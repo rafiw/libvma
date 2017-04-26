@@ -107,22 +107,21 @@ void ring_eth_cb::create_resources(ring_resource_creation_info_t *p_ring_info,
 	if (m_stride_size > mp_rq_caps->max_single_stride_log_num_of_bytes) {
 		m_stride_size = mp_rq_caps->max_single_stride_log_num_of_bytes;
 	}
-
+	m_pow_stride_size = 1 << m_stride_size;
 	uint32_t max_wqe_size = 1 << mp_rq_caps->max_single_wqe_log_num_of_strides;
 	uint32_t user_req_wq = m_cb_ring.num / max_wqe_size;
 	if (user_req_wq > 2) {
 		m_wq_count = min<uint32_t>(user_req_wq, MAX_MP_WQES);
 		m_strides_num = mp_rq_caps->max_single_wqe_log_num_of_strides;
-		m_pow_strides_num = 1 << m_strides_num;
 	} else {
 		m_wq_count = MIN_MP_WQES;
 		m_strides_num = ilog_2(align32pow2(m_cb_ring.num) / m_wq_count);
 		if (m_strides_num < mp_rq_caps->min_single_wqe_log_num_of_strides) {
 			m_strides_num = mp_rq_caps->min_single_wqe_log_num_of_strides;
 		}
-		m_pow_strides_num = 1 << m_strides_num;
 	}
-	m_buffer_size = (1 << m_stride_size) * m_pow_strides_num * m_wq_count + MCE_ALIGNMENT;
+	m_pow_strides_num = 1 << m_strides_num;
+	m_buffer_size = m_pow_stride_size * m_pow_strides_num * m_wq_count;
 	if (m_buffer_size == 0) {
 		ring_logerr("problem with buffer parameters, m_buffer_size %zd "
 			    "strides_num %d stride size %d",

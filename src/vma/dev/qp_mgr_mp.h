@@ -45,28 +45,26 @@ public:
 		  const uint8_t port_num,
 		  struct ibv_comp_channel *p_rx_comp_event_channel,
 		  const uint32_t tx_num_wr, const uint16_t vlan)
-		  throw (vma_error) : qp_mgr_eth((const ring_simple *)p_ring,
+		  throw (vma_error) : qp_mgr_eth(p_ring,
 						 p_context, port_num,
 						 p_rx_comp_event_channel,
 						 tx_num_wr, vlan, false),
-		  // for coverity
 		  m_p_wq(NULL), m_p_wq_family(NULL), m_p_rwq_ind_tbl(NULL) {
-		m_p_ring = const_cast<ring_eth_cb *>(p_ring);
-		m_n_sysvar_rx_num_wr_to_post_recv = p_ring->get_wq_count();
+		m_p_mp_ring = p_ring;
+		m_n_sysvar_rx_num_wr_to_post_recv = m_p_mp_ring->get_wq_count();
 		if (configure(p_rx_comp_event_channel))
-			throw_vma_exception("failed creating qp");
+			throw_vma_exception("failed creating mp qp");
 	};
 	virtual		~qp_mgr_mp();
 	virtual void	up();
 	int		post_recv(uint32_t sg_index, uint32_t num_of_sge);
-	uint8_t		get_strides_num() {return m_p_ring->get_strides_num();}
-	int		get_wq_count() {return m_p_ring->get_wq_count();}
+	int		get_wq_count() {return m_p_mp_ring->get_wq_count();}
 protected:
 	virtual cq_mgr* init_rx_cq_mgr(struct ibv_comp_channel* p_rx_comp_event_channel);
 	virtual int	prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr);
 private:
 	// override parent ring
-	ring_eth_cb*			m_p_ring;
+	const ring_eth_cb*		m_p_mp_ring;
 	struct ibv_exp_wq*		m_p_wq;
 	struct ibv_exp_wq_family*	m_p_wq_family;
 	struct ibv_exp_rwq_ind_table*	m_p_rwq_ind_tbl;
