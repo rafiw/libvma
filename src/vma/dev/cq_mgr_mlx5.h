@@ -39,7 +39,10 @@
 #ifdef HAVE_INFINIBAND_MLX5_HW_H
 
 /* Get CQE opcode. */
-#define MLX5_CQE_OPCODE(op_own) (((op_own) & 0xf0) >> 4)
+#define MLX5_CQE_OPCODE(op_own) ((op_own) >> 4)
+
+/* Get CQE owner bit. */
+#define MLX5_CQE_OWNER(op_own) ((op_own) & MLX5_CQE_OWNER_MASK)
 
 class cq_mgr_mlx5: public cq_mgr
 {
@@ -74,13 +77,13 @@ protected:
 	uint32_t                    m_cq_size;
 	uint32_t                    m_cq_cons_index;
 	struct mlx5_cqe64           (*m_cqes)[];
-	bool                        m_skip_cleanup;
 
 private:
 	volatile uint32_t           *m_cq_dbell;
 	mem_buf_desc_t              *m_rx_hot_buffer;
 	struct mlx5_wq              *m_rq;
 	uint64_t                    *m_p_rq_wqe_idx_to_wrid;
+	bool                        m_do_cleanup;
 };
 
 #endif //HAVE_INFINIBAND_MLX5_HW_H

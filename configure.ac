@@ -825,6 +825,7 @@ AC_CHECK_FUNCS_ONCE([rdma_lib_reset])
 AC_CHECK_LIB([ibverbs], [ibv_cmd_poll_cq], [VERBS_FLAGS="$VERBS_FLAGS -libverbs"],
 		[])
 AC_SUBST([VERBS_FLAGS])
+
 have_mp_rq=yes
 AC_CHECK_DECLS([IBV_EXP_DEVICE_ATTR_VLAN_OFFLOADS,
 		IBV_EXP_DEVICE_ATTR_MAX_CTX_RES_DOMAIN,
@@ -836,9 +837,12 @@ AC_CHECK_DECLS([IBV_EXP_DEVICE_ATTR_VLAN_OFFLOADS,
 		[have_mp_rq=no],
 		[[#include <infiniband/verbs_exp.h>]
 		 [#include <infiniband/mlx5_hw.h>]])
+
+AC_MSG_CHECKING([multi packet RQ])
 AS_IF([test "x$have_mp_rq" == xyes],
-		[AC_DEFINE([HAVE_MP_RQ], 1, [MP_RQ QP supported])]
-		[AC_MSG_RESULT([MP_RQ is supported])])
+	[AC_DEFINE([HAVE_MP_RQ], 1, [MP_RQ QP supported])] [AC_MSG_RESULT([enabled])],
+	[AC_MSG_RESULT([disabled])])
+
 LDFLAGS=$TMP_LDFLAGS
 
 have_libnl=no

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2016 Mellanox Technologies, Ltd. All rights reserved.
+ * Copyright (c) 2001-2017 Mellanox Technologies, Ltd. All rights reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -37,9 +37,6 @@
 #include "dev/cq_mgr_mlx5.h"
 
 #ifdef HAVE_INFINIBAND_MLX5_HW_H
-
-/* Get CQE owner bit. */
-#define MLX5_CQE_OWNER(op_own) ((op_own) & MLX5_CQE_OWNER_MASK)
 
 /**/
 /** inlining functions can only help if they are implemented before their usage **/

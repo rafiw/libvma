@@ -53,11 +53,11 @@ cq_mgr* qp_mgr_mp::init_rx_cq_mgr(struct ibv_comp_channel* p_rx_comp_event_chann
 	// CQ size should be aligned to power of 2 due to PRM
 	// also it size is the max CQs we can hold at once
 	// this equals to number of strides in WQe * WQ's
-	uint32_t cq_size = align32pow2((m_p_mp_ring->get_power_strides_num() *
+	uint32_t cq_size = align32pow2((m_p_mp_ring->get_strides_num() *
 					m_p_mp_ring->get_wq_count()));
 	return new cq_mgr_mp(m_p_mp_ring, m_p_ib_ctx_handler, cq_size,
 			     p_rx_comp_event_channel, true,
-			     m_p_mp_ring->get_power_stride_size());
+			     m_p_mp_ring->get_stride_size());
 }
 
 int qp_mgr_mp::prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr)
@@ -102,9 +102,9 @@ int qp_mgr_mp::prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr)
 	wq_init_attr.comp_mask |= IBV_EXP_CREATE_WQ_MP_RQ;
 	wq_init_attr.mp_rq.use_shift = IBV_EXP_MP_RQ_NO_SHIFT;
 	wq_init_attr.mp_rq.single_wqe_log_num_of_strides =
-				m_p_mp_ring->get_strides_num();
+				m_p_mp_ring->et_single_wqe_log_num_of_strides();
 	wq_init_attr.mp_rq.single_stride_log_num_of_bytes =
-				m_p_mp_ring->get_stride_size();
+				m_p_mp_ring->get_single_stride_log_num_of_bytes();
 
 	m_p_wq = ibv_exp_create_wq(m_p_ib_ctx_handler->get_ibv_context(),
 			&wq_init_attr);
@@ -182,8 +182,8 @@ int qp_mgr_mp::prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr)
 	BULLSEYE_EXCLUDE_BLOCK_END
 	// initlize the sge, the same sg will be used for all operations
 	ptr = (uint8_t *)(((unsigned long)m_p_mp_ring->get_mem_block()));
-	stride_size = m_p_mp_ring->get_power_stride_size();
-	strides_num = m_p_mp_ring->get_power_strides_num();
+	stride_size = m_p_mp_ring->get_stride_size();
+	strides_num = m_p_mp_ring->get_strides_num();
 	size = stride_size * strides_num;
 
 	lkey = m_p_mp_ring->get_mem_lkey(m_p_ib_ctx_handler);

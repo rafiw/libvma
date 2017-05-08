@@ -521,8 +521,6 @@ int vma_get_socket_rings_fds(int fd, int *ring_fds, int ring_fds_sz)
 extern "C"
 int vma_add_conf_rule(char *config_line)
 {
-	DO_GLOBAL_CTORS();
-
 	srdr_logdbg("adding conf rule: %s", config_line);
 
 	int ret = __vma_parse_config_line(config_line);
@@ -536,8 +534,6 @@ int vma_add_conf_rule(char *config_line)
 extern "C"
 int vma_thread_offload(int offload, pthread_t tid)
 {
-	DO_GLOBAL_CTORS();
-
 	if (g_p_fd_collection) {
 		g_p_fd_collection->offloading_rule_change_thread(offload, tid);
 	} else {
@@ -555,8 +551,6 @@ NOT_IN_USE(fd);
 NOT_IN_USE(log_level);
 	return 0;
 #else
-	DO_GLOBAL_CTORS();
-
 	if (g_p_fd_collection) {
 		g_p_fd_collection->statistics_print(fd, log_level::from_int(log_level));
 		return 0;
@@ -889,6 +883,7 @@ int getsockopt(int __fd, int __level, int __optname,
 
 	if (__fd == -1 && __level == SOL_SOCKET && __optname == SO_VMA_GET_API &&
 	    __optlen && *__optlen >= sizeof(struct vma_api_t*)) {
+		DO_GLOBAL_CTORS();
 		srdr_logdbg("User request for VMA Extra API pointers");
 		struct vma_api_t *vma_api = new struct vma_api_t();
 		memset(vma_api, 0, sizeof(struct vma_api_t));

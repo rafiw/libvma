@@ -227,7 +227,6 @@ protected:
 	inline uint32_t process_recv_queue(void* pv_fd_ready_array = NULL);
 
 	virtual void	prep_ibv_cq(vma_ibv_cq_init_attr &attr) const;
-	virtual int	post_ibv_cq() { return 0;}
 
 	struct ibv_cq*		m_p_ibv_cq;
 	bool			m_b_is_rx;

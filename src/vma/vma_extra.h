@@ -228,6 +228,7 @@ enum vma_ring_alloc_logic_attr_comp_mask {
  * 	see @ref vma_ring_alloc_logic_attr_comp_mask
  * @param ring_profile_key - what ring profile to use - get the profile when
  * 	creating ring using @ref vma_add_ring_profile in extra_api
+ * 	can only be set once
   * @param ring_alloc_logic- allocation ratio to use
  * @param user_idx - when used RING_LOGIC_PER_USER_ID int @ref ring_alloc_logic
  * 	this is the user id to define. This lets you define the same ring for

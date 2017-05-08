@@ -49,6 +49,15 @@
 
 #ifdef HAVE_MP_RQ
 
+enum {
+	/* Masks to handle the CQE byte_count field in case of MP RQ */
+	MP_RQ_BYTE_CNT_FIELD_MASK = 0x0000FFFF,
+	MP_RQ_NUM_STRIDES_FIELD_MASK = 0x7FFF0000,
+	MP_RQ_FILLER_FIELD_MASK = 0x80000000,
+	MP_RQ_NUM_STRIDES_FIELD_SHIFT = 16,
+};
+
+// for optimization expected checksum for receiving packets
 const uint32_t cq_mgr_mp::UDP_OK_FLAGS = IBV_EXP_CQ_RX_IP_CSUM_OK |
 					 IBV_EXP_CQ_RX_TCP_UDP_CSUM_OK;
 
@@ -72,31 +81,23 @@ void cq_mgr_mp::prep_ibv_cq(vma_ibv_cq_init_attr &attr) const
 	attr.res_domain = m_p_ring->get_res_domain();
 }
 
-void cq_mgr_mp::add_qp_rx(qp_mgr *_qp)
+void cq_mgr_mp::add_qp_rx(qp_mgr *qp)
 {
-	cq_logdbg("qp_mp_mgr=%p", _qp);
-	qp_mgr_mp* qp = dynamic_cast<qp_mgr_mp *>(_qp);
+	cq_logdbg("qp_mp_mgr=%p", qp);
+	qp_mgr_mp* mp_qp = dynamic_cast<qp_mgr_mp *>(qp);
 
-	if (qp == NULL) {
-		cq_logdbg("this qp is not of type qp_mgr_mp %p", _qp);
+	if (mp_qp == NULL) {
+		cq_logdbg("this qp is not of type qp_mgr_mp %p", qp);
 		throw_vma_exception("this qp is not of type qp_mgr_mp");
 	}
-	set_qp_rq(_qp);
-	if (qp->post_recv(0, qp->get_wq_count()) != 0) {
+	set_qp_rq(qp);
+	if (mp_qp->post_recv(0, mp_qp->get_wq_count()) != 0) {
 		cq_logdbg("qp post recv failed");
+	} else {
+		cq_logdbg("Successfully post_recv qp with %d new Rx buffers",
+			  mp_qp->get_wq_count());
 	}
-
-	cq_logdbg("Successfully post_recv qp with %d new Rx buffers",
-		  qp->get_wq_count());
 }
-
-enum {
-	/* Masks to handle the CQE byte_count field in case of MP RQ */
-	MP_RQ_BYTE_CNT_FIELD_MASK = 0x0000FFFF,
-	MP_RQ_NUM_STRIDES_FIELD_MASK = 0x7FFF0000,
-	MP_RQ_FILLER_FIELD_MASK = 0x80000000,
-	MP_RQ_NUM_STRIDES_FIELD_SHIFT = 16,
-};
 
 /**
  * this function polls the CQ, and extracts the needed fields
@@ -107,21 +108,21 @@ int cq_mgr_mp::poll_mp_cq(uint16_t &size, uint32_t &strides_used,
 			  uint32_t &offset, uint32_t &flags,
 			  volatile struct mlx5_cqe64 *&out_cqe64)
 {
-	int ret = 0;
 	volatile struct mlx5_cqe64 *cqe = check_cqe();
 
 	if (likely(cqe)) {
-		if (unlikely((cqe->op_own >> 4) != MLX5_CQE_RESP_SEND)) {
-			cq_logdbg("Warning op_own is %u", cqe->op_own >> 4);
-			flags |= VMA_MP_RQ_BAD_PACKET;
+		if (unlikely(MLX5_CQE_OPCODE(cqe->op_own) != MLX5_CQE_RESP_SEND)) {
+			cq_logdbg("Warning op_own is %x", cqe->op_own >> 4);
+			// optimize checks in ring by setting size non zero
+			size = 1;
 			return -1;
 		}
 		out_cqe64 = cqe;
-		uint32_t byte_strides = ntohl(cqe->byte_cnt);
-		strides_used += (byte_strides & MP_RQ_NUM_STRIDES_FIELD_MASK) >>
+		uint32_t stride_byte_cnt = ntohl(cqe->byte_cnt);
+		strides_used += (stride_byte_cnt & MP_RQ_NUM_STRIDES_FIELD_MASK) >>
 				MP_RQ_NUM_STRIDES_FIELD_SHIFT;
-		if (likely(!(byte_strides & MP_RQ_FILLER_FIELD_MASK))) {
-			size = byte_strides & MP_RQ_BYTE_CNT_FIELD_MASK;
+		if (likely(!(stride_byte_cnt & MP_RQ_FILLER_FIELD_MASK))) {
+			size = stride_byte_cnt & MP_RQ_BYTE_CNT_FIELD_MASK;
 			offset = ntohs(cqe->wqe_counter) * m_pow_stride_size;
 			flags = (!!(cqe->hds_ip_ext & MLX5_CQE_L4_OK) * IBV_EXP_CQ_RX_TCP_UDP_CSUM_OK) |
 				(!!(cqe->hds_ip_ext & MLX5_CQE_L3_OK) * IBV_EXP_CQ_RX_IP_CSUM_OK);
@@ -140,7 +141,7 @@ int cq_mgr_mp::poll_mp_cq(uint16_t &size, uint32_t &strides_used,
 	}
 	cq_logfine("returning packet size %d, stride used %d offset %u "
 		   "flags %d", size, strides_used, offset, flags);
-	return ret;
+	return 0;
 }
 
 
@@ -149,12 +150,11 @@ cq_mgr_mp::~cq_mgr_mp()
 	volatile struct mlx5_cqe64 *out_cqe64;
 	uint16_t size;
 	uint32_t strides_used = 0, offset, flags = 0;
-	m_skip_cleanup = true;
+	int ret;
 	do {
 		size = 0;
-		poll_mp_cq(size, strides_used, offset, flags, out_cqe64);
-	} while (size);
-	m_skip_cleanup = true;
+		ret = poll_mp_cq(size, strides_used, offset, flags, out_cqe64);
+	} while (size > 0 && ret >= 0);
 
 }
 #endif // HAVE_MP_RQ

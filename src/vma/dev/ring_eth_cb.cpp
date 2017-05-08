@@ -98,46 +98,46 @@ void ring_eth_cb::create_resources(ring_resource_creation_info_t *p_ring_info,
 		throw_vma_exception("failed creating resource domain");
 	}
 	// stride size is headers + user payload aligned to power of 2
-	m_stride_size = ilog_2(align32pow2(m_cb_ring.stride_bytes + ETH_HDR_LEN +
+	m_single_stride_log_num_of_bytes = ilog_2(align32pow2(m_cb_ring.stride_bytes + ETH_HDR_LEN +
 					   sizeof(struct iphdr) +
 					   sizeof(struct udphdr)));
-	if (m_stride_size < mp_rq_caps->min_single_stride_log_num_of_bytes) {
-		m_stride_size = mp_rq_caps->min_single_stride_log_num_of_bytes;
+	if (m_single_stride_log_num_of_bytes < mp_rq_caps->min_single_stride_log_num_of_bytes) {
+		m_single_stride_log_num_of_bytes = mp_rq_caps->min_single_stride_log_num_of_bytes;
 	}
-	if (m_stride_size > mp_rq_caps->max_single_stride_log_num_of_bytes) {
-		m_stride_size = mp_rq_caps->max_single_stride_log_num_of_bytes;
+	if (m_single_stride_log_num_of_bytes > mp_rq_caps->max_single_stride_log_num_of_bytes) {
+		m_single_stride_log_num_of_bytes = mp_rq_caps->max_single_stride_log_num_of_bytes;
 	}
-	m_pow_stride_size = 1 << m_stride_size;
+	m_stride_size = 1 << m_single_stride_log_num_of_bytes;
 	uint32_t max_wqe_size = 1 << mp_rq_caps->max_single_wqe_log_num_of_strides;
 	uint32_t user_req_wq = m_cb_ring.num / max_wqe_size;
 	if (user_req_wq > 2) {
 		m_wq_count = min<uint32_t>(user_req_wq, MAX_MP_WQES);
-		m_strides_num = mp_rq_caps->max_single_wqe_log_num_of_strides;
+		m_single_wqe_log_num_of_strides = mp_rq_caps->max_single_wqe_log_num_of_strides;
 	} else {
 		m_wq_count = MIN_MP_WQES;
-		m_strides_num = ilog_2(align32pow2(m_cb_ring.num) / m_wq_count);
-		if (m_strides_num < mp_rq_caps->min_single_wqe_log_num_of_strides) {
-			m_strides_num = mp_rq_caps->min_single_wqe_log_num_of_strides;
+		m_single_wqe_log_num_of_strides = ilog_2(align32pow2(m_cb_ring.num) / m_wq_count);
+		if (m_single_wqe_log_num_of_strides < mp_rq_caps->min_single_wqe_log_num_of_strides) {
+			m_single_wqe_log_num_of_strides = mp_rq_caps->min_single_wqe_log_num_of_strides;
 		}
 	}
-	m_pow_strides_num = 1 << m_strides_num;
-	m_buffer_size = m_pow_stride_size * m_pow_strides_num * m_wq_count;
+	m_strides_num = 1 << m_single_wqe_log_num_of_strides;
+	m_buffer_size = m_stride_size * m_strides_num * m_wq_count;
 	if (m_buffer_size == 0) {
 		ring_logerr("problem with buffer parameters, m_buffer_size %zd "
 			    "strides_num %d stride size %d",
-			    m_buffer_size, m_strides_num, m_stride_size);
+			    m_buffer_size, m_single_wqe_log_num_of_strides, m_single_stride_log_num_of_bytes);
 		throw_vma_exception("bad cyclic buffer parameters");
 	}
 	memset(&m_curr_hw_timestamp, 0, sizeof(m_curr_hw_timestamp));
 
 	// create cyclic buffer get exception on failure
-	alloc.alloc_and_reg_mr(m_buffer_size, p_ring_info->p_ib_ctx) ;
+	m_alloc.alloc_and_reg_mr(m_buffer_size, p_ring_info->p_ib_ctx) ;
 	ring_simple::create_resources(p_ring_info, active);
 	m_is_mp_ring = true;
 	m_ibv_rx_sg_array = m_p_qp_mgr->get_rx_sge();
 	ring_logdbg("use buffer parameters, m_buffer_size %zd "
 		    "strides_num %d stride size %d",
-		    m_buffer_size, m_strides_num, m_stride_size);
+		    m_buffer_size, m_single_wqe_log_num_of_strides, m_single_stride_log_num_of_bytes);
 }
 
 qp_mgr* ring_eth_cb::create_qp_mgr(const ib_ctx_handler *ib_ctx,
@@ -163,9 +163,9 @@ int ring_eth_cb::poll_and_process_element_rx(uint64_t* p_cq_poll_sn,
 }
 
 int ring_eth_cb::cyclic_buffer_read(vma_completion_mp_t &completion,
-				    size_t min, size_t max, int &flags)
+				    size_t min, size_t max, int flags)
 {
-	uint32_t offset = 0, p_flags = 0;
+	uint32_t offset = 0, poll_flags = 0;
 	uint16_t size = 0;
 	volatile struct mlx5_cqe64 *cqe64;
 
@@ -182,7 +182,7 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_mp_t &completion,
 	}
 
 	int ret = ((cq_mgr_mp *)m_p_cq_mgr_rx)->poll_mp_cq(size,
-					m_stride_counter, offset, p_flags, cqe64);
+					m_stride_counter, offset, poll_flags, cqe64);
 	// empty
 	if (size == 0) {
 		return 0;
@@ -192,7 +192,7 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_mp_t &completion,
 		return -1;
 	}
 	// set it here because we might not have min packets avail in this run
-	if (likely(!(p_flags & VMA_MP_RQ_BAD_PACKET))) {
+	if (likely(!(poll_flags & VMA_MP_RQ_BAD_PACKET))) {
 		if (unlikely(m_curr_d_addr == 0)) {
 			m_curr_d_addr = (void *)(m_ibv_rx_sg_array[m_curr_wq].addr + offset);
 			if (completion.comp_mask & VMA_MP_MASK_TIMESTAMP) {
@@ -207,7 +207,7 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_mp_t &completion,
 			m_curr_packets++;
 			m_curr_size += size;
 		}
-		if (unlikely(m_stride_counter >= m_pow_strides_num)) {
+		if (unlikely(m_stride_counter >= m_strides_num)) {
 			reload_wq();
 		} else {
 			ret = mp_loop(min);
@@ -226,6 +226,7 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_mp_t &completion,
 		completion.headers_ptr = m_curr_h_ptr;
 		completion.headers_ptr_length = m_curr_size;
 	}
+	// hw_timestamp of first packet in batch
 	completion.hw_timestamp = m_curr_hw_timestamp;
 	m_curr_d_addr = 0;
 	ring_logdbg("Returning completion, buffer ptr %p, data size %zd, "
@@ -243,7 +244,7 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_mp_t &completion,
  * 	1 if done looping
  * 	2 if need to return due to WQ or filler
  */
-inline int ring_eth_cb::mp_loop(size_t limit)
+inline mp_loop_result ring_eth_cb::mp_loop(size_t limit)
 {
 	uint32_t offset = 0;
 	volatile struct mlx5_cqe64 *cqe64;
@@ -254,33 +255,35 @@ inline int ring_eth_cb::mp_loop(size_t limit)
 		uint32_t flags = 0;
 		int ret = ((cq_mgr_mp *)m_p_cq_mgr_rx)->poll_mp_cq(size, m_stride_counter,
 				offset, flags, cqe64);
-		if (unlikely(ret == -1)) {
-			ring_logdbg("poll_mp_cq failed with errno %m", errno);
-			return 2;
-		}
 		if (size == 0) {
 			ring_logfine("no packet found");
-			return 0;
+			return MP_LOOP_DRAINED;
+		}
+		if (unlikely(ret == -1)) {
+			ring_logdbg("poll_mp_cq failed with errno %m", errno);
+			return MP_LOOP_RETURN_TO_APP;
 		}
 		if (unlikely(flags & VMA_MP_RQ_BAD_PACKET)) {
-			if (m_stride_counter >= m_pow_strides_num) {
+			if (m_stride_counter >= m_strides_num) {
 				reload_wq();
 			}
-			return 2;
+			return MP_LOOP_RETURN_TO_APP;
 		}
 		m_curr_size += size;
 		++m_curr_packets;
-		if (unlikely(m_stride_counter >= m_pow_strides_num)) {
+		if (unlikely(m_stride_counter >= m_strides_num)) {
 			reload_wq();
-			return 2;
+			return MP_LOOP_RETURN_TO_APP;
 		}
 	}
 	ring_logfine("mp_loop finished all iterations");
-	return 1;
+	return MP_LOOP_DONE;
 }
 
 inline void ring_eth_cb::reload_wq()
 {
+	// in current implementation after each WQe is used by the HW
+	// the ring reloads it to the HW again that why 1 is used
 	((qp_mgr_mp *)m_p_qp_mgr)->post_recv(m_curr_wq, 1);
 	m_curr_wq = (m_curr_wq + 1) % m_wq_count;
 	m_stride_counter = 0;

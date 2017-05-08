@@ -116,7 +116,8 @@ size_t ring_alloc_logic_attr::operator()(const ring_alloc_logic_attr *key) const
 	int c;
 	ostringstream s;
 	s << key->m_ring_alloc_logic << key->m_ring_profile_key << key->m_user_idx_key;
-	const char* chr = s.str().c_str();
+	std::string tmp = s.str();
+	const char* chr = tmp.c_str();
 	while ((c = *chr++))
 		h = ((h << 5) + h) + c; /* hash * 33 + c */
 	return h;
