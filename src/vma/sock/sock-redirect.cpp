@@ -584,7 +584,7 @@ int vma_cyclic_buffer_read(int fd, struct vma_completion_mp_t *completion,
 
 #endif // HAVE_MP_RQ
 
-int vma_add_ring_profile(vma_ring_type_attr *profile, int *res)
+int vma_add_ring_profile(vma_ring_type_attr *profile, vma_ring_profile_key *res)
 {
 	if (!g_p_ring_profile) {
 		vlog_printf(VLOG_DEBUG, "%s g_p_ring_profile is null\n",__func__);

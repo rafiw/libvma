@@ -62,7 +62,8 @@ ring_allocation_logic::ring_allocation_logic(ring_logic_t allocation_logic,
 	m_tostr("base"), m_ring_migration_ratio(ring_migration_ratio),
 	m_fd(fd), m_migration_try_count(ring_migration_ratio)
 {
-	if (!ring_profile.m_ring_alloc_logic) {
+	if (ring_profile.m_ring_alloc_logic == RING_LOGIC_PER_INTERFACE &&
+	    ring_profile.m_ring_profile_key < START_RING_INDEX) {
 		ring_profile.m_ring_alloc_logic = allocation_logic;
 	}
 	m_res_key = resource_allocation_key(ring_profile);
@@ -116,7 +117,7 @@ resource_allocation_key* ring_allocation_logic::create_new_key(int suggested_cpu
 	}
 
 	update_res_key_by_logic();
-	return get_key();
+	return &m_res_key;
 }
 
 /*
@@ -124,7 +125,7 @@ resource_allocation_key* ring_allocation_logic::create_new_key(int suggested_cpu
  */
 bool ring_allocation_logic::should_migrate_ring()
 {
-	if (m_res_key.m_ring_alloc_logic < RING_LOGIC_PER_USER_ID) {
+	if (m_res_key.m_ring_alloc_logic < RING_LOGIC_PER_THREAD) {
 		return false;
 	}
 
@@ -138,7 +139,8 @@ bool ring_allocation_logic::should_migrate_ring()
 	if (m_migration_candidate) {
 		count_max = CANDIDATE_STABILITY_ROUNDS;
 		update_res_key_by_logic();
-		if (m_migration_candidate != m_res_key.m_user_idx_key) {
+		uint64_t current_id = m_res_key.m_user_idx_key;
+		if (m_migration_candidate != current_id) {
 			m_migration_candidate = 0;
 			m_migration_try_count = 0;
 			return false;
@@ -153,20 +155,24 @@ bool ring_allocation_logic::should_migrate_ring()
 	}
 
 	if (!m_migration_candidate) {
-		if (g_n_internal_thread_id == m_res_key.m_user_idx_key) {
+		// save current used allocation key
+		// no need to save profile, and allocation logic
+		uint64_t old_id = m_res_key.m_user_idx_key;
+		// check new key
+		update_res_key_by_logic();
+		if (m_res_key.m_user_idx_key == old_id || g_n_internal_thread_id == old_id) {
 			return false;
 		}
 		m_migration_candidate = m_res_key.m_user_idx_key;
 		return false;
 	}
 
-	ral_logdbg("migrating from ring of id=%lu to ring of id=%lu",
+	ral_logdbg("migrating from ring of id=%s to ring of id=%lu",
 		   m_res_key.to_str().c_str(), m_migration_candidate);
 	m_migration_candidate = 0;
 
 	return true;
 }
-
 
 cpu_manager g_cpu_manager;
 __thread int g_n_thread_cpu_core = NO_CPU;

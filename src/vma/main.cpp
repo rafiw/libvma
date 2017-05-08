@@ -444,6 +444,17 @@ void print_vma_global_settings()
 
 	VLOG_PARAM_NUMSTR("Ring allocation logic TX", safe_mce_sys().ring_allocation_logic_tx, MCE_DEFAULT_RING_ALLOCATION_LOGIC_TX, SYS_VAR_RING_ALLOCATION_LOGIC_TX, ring_logic_str(safe_mce_sys().ring_allocation_logic_tx));
 	VLOG_PARAM_NUMSTR("Ring allocation logic RX", safe_mce_sys().ring_allocation_logic_rx, MCE_DEFAULT_RING_ALLOCATION_LOGIC_RX, SYS_VAR_RING_ALLOCATION_LOGIC_RX, ring_logic_str(safe_mce_sys().ring_allocation_logic_rx));
+	if (safe_mce_sys().ring_allocation_logic_rx == RING_LOGIC_PER_USER_ID) {
+		vlog_printf(VLOG_DEBUG,"user_id is not supported using "
+			    "environment variable , use etra_api, using default\n");
+		safe_mce_sys().ring_allocation_logic_rx = MCE_DEFAULT_RING_ALLOCATION_LOGIC_RX;
+	}
+
+	if (safe_mce_sys().ring_allocation_logic_tx == RING_LOGIC_PER_USER_ID) {
+		vlog_printf(VLOG_DEBUG,"user_id is not supported using "
+			    "environment variable , use etra_api, using default\n");
+		safe_mce_sys().ring_allocation_logic_tx = MCE_DEFAULT_RING_ALLOCATION_LOGIC_TX;
+	}
 
 	VLOG_PARAM_NUMBER("Ring migration ratio TX", safe_mce_sys().ring_migration_ratio_tx, MCE_DEFAULT_RING_MIGRATION_RATIO_TX, SYS_VAR_RING_MIGRATION_RATIO_TX);
 	VLOG_PARAM_NUMBER("Ring migration ratio RX", safe_mce_sys().ring_migration_ratio_rx, MCE_DEFAULT_RING_MIGRATION_RATIO_RX, SYS_VAR_RING_MIGRATION_RATIO_RX);

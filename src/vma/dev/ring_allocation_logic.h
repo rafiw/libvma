@@ -89,7 +89,7 @@ class ring_allocation_logic_rx : public ring_allocation_logic
 {
 public:
 	ring_allocation_logic_rx():ring_allocation_logic(){}
-	ring_allocation_logic_rx(int fd, resource_allocation_key ring_profile, const void* owner):
+	ring_allocation_logic_rx(int fd, resource_allocation_key &ring_profile, const void* owner):
 		ring_allocation_logic(safe_mce_sys().ring_allocation_logic_rx,
 				      safe_mce_sys().ring_migration_ratio_rx,
 				      fd, ring_profile) {
@@ -101,7 +101,7 @@ class ring_allocation_logic_tx : public ring_allocation_logic
 {
 public:
 	ring_allocation_logic_tx():ring_allocation_logic(){}
-	ring_allocation_logic_tx(int fd, resource_allocation_key ring_profile, const void* owner):
+	ring_allocation_logic_tx(int fd, resource_allocation_key &ring_profile, const void* owner):
 		ring_allocation_logic(safe_mce_sys().ring_allocation_logic_tx,
 				      safe_mce_sys().ring_migration_ratio_tx,
 				      fd, ring_profile) {

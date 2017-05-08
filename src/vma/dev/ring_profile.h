@@ -18,19 +18,16 @@ class ring_profile;
 class ring_profiles_collection;
 
 
-typedef std::tr1::unordered_map<uint64_t, ring_profile *> ring_profile_map_t;
+typedef std::tr1::unordered_map<vma_ring_profile_key, ring_profile *> ring_profile_map_t;
 
 extern ring_profiles_collection *g_p_ring_profile;
 
-const int RING_PROF_STR_LEN = 256;
 
 class ring_profile
 {
 public:
 	ring_profile();
-	ring_profile(uint64_t type);
 	ring_profile(struct vma_ring_type_attr *ring_desc);
-	bool is_default(){return m_ring_desc.ring_type == VMA_RING_PACKET;}
 	vma_ring_type get_ring_type() {return m_ring_desc.ring_type;}
 	struct vma_ring_type_attr* get_desc(){return &m_ring_desc;}
 	const char* to_str(){ return m_str.c_str();}
@@ -46,11 +43,11 @@ class ring_profiles_collection
 public:
 	ring_profiles_collection();
 	~ring_profiles_collection();
-	int			add_profile(vma_ring_type_attr *profile);
-	ring_profile*		get_profile(uint64_t key);
+	vma_ring_profile_key	add_profile(vma_ring_type_attr *profile);
+	ring_profile*		get_profile(vma_ring_profile_key key);
 
 private:
 	ring_profile_map_t	m_profs_map;
-	uint64_t		m_curr_idx;
+	int			m_curr_idx;
 };
 #endif /* SRC_VMA_DEV_RING_PROFILE_H_ */

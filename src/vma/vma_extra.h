@@ -203,6 +203,8 @@ struct vma_completion_mp_t {
  */
 #define SO_VMA_RING_ALLOC_LOGIC		2810
 
+typedef int vma_ring_profile_key;
+
 enum ring_logic_t {
 	RING_LOGIC_PER_INTERFACE = 0,           //!< RING_LOGIC_PER_INTERFACE
 	RING_LOGIC_PER_SOCKET = 10,             //!< RING_LOGIC_PER_SOCKET
@@ -215,15 +217,15 @@ enum ring_logic_t {
 
 enum vma_ring_alloc_logic_attr_comp_mask {
 	VMA_RING_ALLLOC_MASK_RING_PROFILE_IDX = (1 << 0),
-	VMA_RING_ALLLOC_MASK_RING_ALLOC_LOGIC = (1 << 1),
-	VMA_RING_ALLLOC_MASK_RING_USER_ID = (1 << 2),
-	VMA_RING_ALLLOC_MASK_RING_INGRESS = (1 << 3),
-	VMA_RING_ALLLOC_MASK_RING_ENGRESS = (1 << 4),
+	VMA_RING_ALLLOC_MASK_RING_USER_ID = (1 << 1),
+	VMA_RING_ALLLOC_MASK_RING_INGRESS = (1 << 2),
+	VMA_RING_ALLLOC_MASK_RING_ENGRESS = (1 << 3),
 };
 
 /**
  * @brief pass this struct to vma using setsockopt with @ref SO_VMA_RING_ALLOC_LOGIC
  * 	to set the allocation logic of this FD when he requests a ring.
+ * 	@note ring_alloc_logic is a mandatory
  * @param comp_mask - what fields are read when processing this sturct
  * 	see @ref vma_ring_alloc_logic_attr_comp_mask
  * @param ring_profile_key - what ring profile to use - get the profile when
@@ -238,8 +240,8 @@ enum vma_ring_alloc_logic_attr_comp_mask {
  */
 struct vma_ring_alloc_logic_attr {
 	uint32_t	comp_mask;
-	uint32_t	ring_profile_key;
 	ring_logic_t	ring_alloc_logic;
+	uint32_t	ring_profile_key;
 	uint32_t	user_id;
 	uint32_t	ingress:1;
 	uint32_t	engress:1;
@@ -281,7 +283,6 @@ struct vma_packet_queue_ring_attr {
 };
 
 enum vma_ring_type_attr_mask {
-	VMA_RING_TYPE_MASK = (1 << 0)
 };
 
 enum vma_ring_type {

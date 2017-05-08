@@ -47,7 +47,7 @@ const char* ring_profile::get_vma_ring_type_str()
 ring_profile::ring_profile()
 {
 	m_ring_desc.ring_type = VMA_RING_PACKET;
-	m_ring_desc.comp_mask = VMA_RING_TYPE_MASK;
+	m_ring_desc.comp_mask = 0;
 	m_ring_desc.ring_pktq.comp_mask = 0;
 	create_string();
 };
@@ -56,6 +56,7 @@ ring_profile::ring_profile()
 void ring_profile::create_string()
 {
 	ostringstream s;
+
 	if (m_ring_desc.ring_type == VMA_RING_PACKET) {
 		s<<get_vma_ring_type_str();
 	} else {
@@ -64,23 +65,24 @@ void ring_profile::create_string()
 		 <<" stride_bytes:"<<m_ring_desc.ring_cyclicb.stride_bytes
 		 <<" hdr size:"<<m_ring_desc.ring_cyclicb.hdr_bytes;
 	}
+	m_str = s.str();
 }
 
 ring_profiles_collection::ring_profiles_collection(): m_curr_idx(START_RING_INDEX) {
 
 }
 
-int ring_profiles_collection::add_profile(vma_ring_type_attr *profile)
+vma_ring_profile_key ring_profiles_collection::add_profile(vma_ring_type_attr *profile)
 {
 	// key 0 is invalid
-	uint64_t key = m_curr_idx;
+	int key = m_curr_idx;
 	m_curr_idx++;
 	ring_profile *prof = new ring_profile(profile);
 	m_profs_map[key] = prof;
 	return key;
 }
 
-ring_profile* ring_profiles_collection::get_profile(uint64_t key)
+ring_profile* ring_profiles_collection::get_profile(vma_ring_profile_key key)
 {
 	ring_profile_map_t::iterator iter = m_profs_map.find(key);
 	if (iter != m_profs_map.end()) {

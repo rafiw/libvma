@@ -98,9 +98,9 @@ void ring_eth_cb::create_resources(ring_resource_creation_info_t *p_ring_info,
 		throw_vma_exception("failed creating resource domain");
 	}
 	// stride size is headers + user payload aligned to power of 2
-	m_single_stride_log_num_of_bytes = ilog_2(align32pow2(m_cb_ring.stride_bytes + ETH_HDR_LEN +
-					   sizeof(struct iphdr) +
-					   sizeof(struct udphdr)));
+	m_single_stride_log_num_of_bytes = ilog_2(align32pow2(
+			m_cb_ring.stride_bytes +
+			ETH_HDR_LEN + sizeof(struct iphdr) + sizeof(struct udphdr)));
 	if (m_single_stride_log_num_of_bytes < mp_rq_caps->min_single_stride_log_num_of_bytes) {
 		m_single_stride_log_num_of_bytes = mp_rq_caps->min_single_stride_log_num_of_bytes;
 	}

@@ -63,11 +63,11 @@ public:
 	ring_alloc_logic_attr(const ring_alloc_logic_attr &other);
 
 	/* ring allocation logic , per thread per fd ... */
-	ring_logic_t	m_ring_alloc_logic;
+	ring_logic_t		m_ring_alloc_logic;
 	/* key in g_p_ring_profile */
-	uint32_t	m_ring_profile_key;
+	vma_ring_profile_key	m_ring_profile_key;
 	/* either user_idx or key as defined in ring_logic_t */
-	uint64_t	m_user_idx_key;
+	uint64_t		m_user_idx_key;
 
 	bool operator==(const ring_alloc_logic_attr& other) const;
 	bool operator!=(const ring_alloc_logic_attr& other) const;
