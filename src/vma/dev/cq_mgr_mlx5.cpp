@@ -56,11 +56,10 @@ cq_mgr_mlx5::cq_mgr_mlx5(ring_simple* p_ring, ib_ctx_handler* p_ib_ctx_handler,
 	,m_cq_size(cq_size)
 	,m_cq_cons_index(0)
 	,m_cqes(NULL)
+	,m_rq(NULL)
 	,m_cq_dbell(NULL)
 	,m_rx_hot_buffer(NULL)
-	,m_rq(NULL)
 	,m_p_rq_wqe_idx_to_wrid(NULL)
-	,m_do_cleanup(call_configure)
 {
 	cq_logfunc("");
 }
@@ -72,14 +71,16 @@ uint32_t cq_mgr_mlx5::clean_cq()
 	mem_buf_desc_t* buff;
 
 	if (m_b_is_rx) {
-		buff_status_e status = BS_OK;
-		while((buff = poll(status))) {
-			if (process_cq_element_rx( buff, status)) {
-				m_rx_queue.push_back(buff);
+		if (m_rq) {
+			buff_status_e status = BS_OK;
+			while((buff = poll(status))) {
+				if (process_cq_element_rx( buff, status)) {
+					m_rx_queue.push_back(buff);
+				}
+				++ret_total;
 			}
-			++ret_total;
+			update_global_sn(cq_poll_sn, ret_total);
 		}
-		update_global_sn(cq_poll_sn, ret_total);
 	} else {//Tx
 		int ret = 0;
 		/* coverity[stack_use_local_overflow] */
@@ -102,11 +103,9 @@ cq_mgr_mlx5::~cq_mgr_mlx5()
 	cq_logfunc("");
 	cq_logdbg("destroying CQ as %s", (m_b_is_rx?"Rx":"Tx"));
 	uint32_t ret_total = 0;
-	if (m_do_cleanup) {
-		ret_total = clean_cq();
-		if (ret_total > 0) {
-			cq_logdbg("Drained %d wce", ret_total);
-		}
+	ret_total = clean_cq();
+	if (ret_total > 0) {
+		cq_logdbg("Drained %d wce", ret_total);
 	}
 	m_rq = NULL;
 	m_b_is_clean = true;
@@ -134,7 +133,6 @@ mem_buf_desc_t* cq_mgr_mlx5::poll(enum buff_status_e& status)
 	volatile mlx5_cqe64 *cqe = check_cqe();
 	if (likely(cqe)) {
 		/* Update the consumer index. */
-		increment_hw_filds();
 		cqe64_to_mem_buff_desc(cqe, m_rx_hot_buffer, status);
 		buff = m_rx_hot_buffer;
 		m_rx_hot_buffer = NULL;
@@ -421,7 +419,6 @@ void cq_mgr_mlx5::set_qp_rq(qp_mgr* qp)
 	m_p_rq_wqe_idx_to_wrid = qp->m_rq_wqe_idx_to_wrid;
 	m_cq_dbell = mlx5_cq->dbrec;
 	m_cqes = (struct mlx5_cqe64 (*)[])(uintptr_t)mlx5_cq->active_buf->buf;
-	NOT_IN_USE(ibcq);
 }
 
 void cq_mgr_mlx5::add_qp_rx(qp_mgr* qp)

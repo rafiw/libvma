@@ -188,7 +188,7 @@ enum vma_completion_mp_mask {
  *  	@note currently same as @param payload_length
  * @param hw_timestamp the HW time stamp of the first packet arrived within the batch
  */
-struct vma_completion_mp_t {
+struct vma_completion_cb_t {
 	uint32_t	comp_mask;
 	void*		payload_ptr;
 	size_t		payload_length;
@@ -216,10 +216,10 @@ enum ring_logic_t {
 };
 
 enum vma_ring_alloc_logic_attr_comp_mask {
-	VMA_RING_ALLLOC_MASK_RING_PROFILE_IDX = (1 << 0),
-	VMA_RING_ALLLOC_MASK_RING_USER_ID = (1 << 1),
-	VMA_RING_ALLLOC_MASK_RING_INGRESS = (1 << 2),
-	VMA_RING_ALLLOC_MASK_RING_ENGRESS = (1 << 3),
+	VMA_RING_ALLOC_MASK_RING_PROFILE_KEY = (1 << 0),
+	VMA_RING_ALLOC_MASK_RING_USER_ID = (1 << 1),
+	VMA_RING_ALLOC_MASK_RING_INGRESS = (1 << 2),
+	VMA_RING_ALLOC_MASK_RING_ENGRESS = (1 << 3),
 };
 
 /**
@@ -258,7 +258,7 @@ enum vma_cyclic_buffer_ring_attr_comp_mask {
  * @param num - Minimum number of elements allocated in the circular buffer
  * @param hdr_bytes - Bytes separated from UDP payload which are
  * 	part of the application header
- * 	@note this will be accesable from headers_ptr in @ref vma_completion_mp_t
+ * 	@note this will be accesable from headers_ptr in @ref vma_completion_cb_t
  * @param stride_bytes - Bytes separated for each ingress payload for alignment
  * 	control (does not include the hdr_bytes). Should be smaller
  * 	than MTU.
@@ -558,7 +558,7 @@ struct __attribute__ ((packed)) vma_api_t {
 	/**
 	 * Get data from the MP_RQ cyclic buffer
 	 * @param fd - the fd of the ring to query - get it using @ref get_socket_rings_fds
-	 * @param completion results see @ref struct vma_completion_mp_t
+	 * @param completion results see @ref struct vma_completion_cb_t
 	 * @param min min number of packet to return, if not available
 	 * 	will return 0 packets
 	 * @param max max packets to return
@@ -566,7 +566,7 @@ struct __attribute__ ((packed)) vma_api_t {
 	 * @return 0 on success -1 on failure
 	 */
 	int (*vma_cyclic_buffer_read)(int fd,
-				      struct vma_completion_mp_t *completion,
+				      struct vma_completion_cb_t *completion,
 				      size_t min, size_t max, int flags);
 
 	/**

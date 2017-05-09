@@ -50,12 +50,12 @@ ring_eth_cb::ring_eth_cb(in_addr_t local_if,
 				  mtu, parent, false)
 			,m_cb_ring(*cb_ring)
 			,m_res_domain(NULL)
-			,m_stride_counter(0)
+			,m_curr_wqe_used_strides(0)
+			,m_all_wqes_used_strides(0)
 			,m_curr_wq(0)
 			,m_curr_d_addr(NULL)
 			,m_curr_h_ptr(NULL)
 			,m_curr_packets(0)
-			,m_curr_size(0)
 {
 	// call function from derived not base
 	create_resources(p_ring_info, active);
@@ -131,10 +131,9 @@ void ring_eth_cb::create_resources(ring_resource_creation_info_t *p_ring_info,
 	memset(&m_curr_hw_timestamp, 0, sizeof(m_curr_hw_timestamp));
 
 	// create cyclic buffer get exception on failure
-	m_alloc.alloc_and_reg_mr(m_buffer_size, p_ring_info->p_ib_ctx) ;
+	m_p_buffer_ptr = (uint64_t)(uintptr_t)m_alloc.alloc_and_reg_mr(m_buffer_size, p_ring_info->p_ib_ctx);
 	ring_simple::create_resources(p_ring_info, active);
 	m_is_mp_ring = true;
-	m_ibv_rx_sg_array = m_p_qp_mgr->get_rx_sge();
 	ring_logdbg("use buffer parameters, m_buffer_size %zd "
 		    "strides_num %d stride size %d",
 		    m_buffer_size, m_single_wqe_log_num_of_strides, m_single_stride_log_num_of_bytes);
@@ -162,11 +161,11 @@ int ring_eth_cb::poll_and_process_element_rx(uint64_t* p_cq_poll_sn,
 	return 0;
 }
 
-int ring_eth_cb::cyclic_buffer_read(vma_completion_mp_t &completion,
+int ring_eth_cb::cyclic_buffer_read(vma_completion_cb_t &completion,
 				    size_t min, size_t max, int flags)
 {
-	uint32_t offset = 0, poll_flags = 0;
-	uint16_t size = 0;
+	uint32_t poll_flags = 0;
+	uint16_t size;
 	volatile struct mlx5_cqe64 *cqe64;
 
 	// sanity check
@@ -182,7 +181,7 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_mp_t &completion,
 	}
 
 	int ret = ((cq_mgr_mp *)m_p_cq_mgr_rx)->poll_mp_cq(size,
-					m_stride_counter, offset, poll_flags, cqe64);
+					m_curr_wqe_used_strides, poll_flags, cqe64);
 	// empty
 	if (size == 0) {
 		return 0;
@@ -194,7 +193,12 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_mp_t &completion,
 	// set it here because we might not have min packets avail in this run
 	if (likely(!(poll_flags & VMA_MP_RQ_BAD_PACKET))) {
 		if (unlikely(m_curr_d_addr == 0)) {
-			m_curr_d_addr = (void *)(m_ibv_rx_sg_array[m_curr_wq].addr + offset);
+			// user data is in the beginning of allocated memory +
+			// number of strides in old WQe (e.g. first WQe that was already reposted) +
+			// number of used strides in current WQe
+			// -1 for the offset of this given packet
+			m_curr_d_addr = (void *)(m_p_buffer_ptr +
+					m_stride_size * (m_all_wqes_used_strides + m_curr_wqe_used_strides - 1));
 			if (completion.comp_mask & VMA_MP_MASK_TIMESTAMP) {
 				convert_hw_time_to_system_time(ntohll(cqe64->timestamp),
 							       &m_curr_hw_timestamp);
@@ -202,37 +206,37 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_mp_t &completion,
 			// When UMR will be added this will be different
 			m_curr_h_ptr = m_curr_d_addr;
 			m_curr_packets = 1;
-			m_curr_size = size;
 		} else {
 			m_curr_packets++;
-			m_curr_size += size;
 		}
-		if (unlikely(m_stride_counter >= m_strides_num)) {
-			reload_wq();
-		} else {
+		bool return_to_app = false;
+		if (unlikely(m_curr_wqe_used_strides >= m_strides_num)) {
+			return_to_app = reload_wq();
+		}
+		if (!return_to_app) {
 			ret = mp_loop(min);
-			if (ret == 1) { // there might be more to drain
+			if (ret == MP_LOOP_LIMIT) { // there might be more to drain
 				mp_loop(max);
-			} else if (ret == 0) { // no packets left
+			} else if (ret == MP_LOOP_DRAINED) { // no packets left
 				return 0;
 			}
 		}
 	}
 
 	completion.payload_ptr = m_curr_d_addr;
-	completion.payload_length = m_curr_size;
+	completion.payload_length = m_curr_packets * m_stride_size;
 	completion.packets = m_curr_packets;
 	if (completion.comp_mask & VMA_MP_MASK_HDR_PTR) {
 		completion.headers_ptr = m_curr_h_ptr;
-		completion.headers_ptr_length = m_curr_size;
+		completion.headers_ptr_length = completion.payload_length;
 	}
 	// hw_timestamp of first packet in batch
 	completion.hw_timestamp = m_curr_hw_timestamp;
 	m_curr_d_addr = 0;
 	ring_logdbg("Returning completion, buffer ptr %p, data size %zd, "
 		    "number of packets %zd WQ index %d",
-		    completion.payload_ptr, m_curr_size, m_curr_packets,
-		    m_curr_wq);
+		    completion.payload_ptr, completion.payload_length,
+		    m_curr_packets, m_curr_wq);
 	return 0;
 }
 
@@ -246,15 +250,13 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_mp_t &completion,
  */
 inline mp_loop_result ring_eth_cb::mp_loop(size_t limit)
 {
-	uint32_t offset = 0;
 	volatile struct mlx5_cqe64 *cqe64;
+	uint16_t size = 0;
+	uint32_t flags = 0;
 
 	while (m_curr_packets < limit) {
-		// must be 0 between calls
-		uint16_t size = 0;
-		uint32_t flags = 0;
-		int ret = ((cq_mgr_mp *)m_p_cq_mgr_rx)->poll_mp_cq(size, m_stride_counter,
-				offset, flags, cqe64);
+		int ret = ((cq_mgr_mp *)m_p_cq_mgr_rx)->poll_mp_cq(size, m_curr_wqe_used_strides,
+								   flags, cqe64);
 		if (size == 0) {
 			ring_logfine("no packet found");
 			return MP_LOOP_DRAINED;
@@ -264,29 +266,40 @@ inline mp_loop_result ring_eth_cb::mp_loop(size_t limit)
 			return MP_LOOP_RETURN_TO_APP;
 		}
 		if (unlikely(flags & VMA_MP_RQ_BAD_PACKET)) {
-			if (m_stride_counter >= m_strides_num) {
+			if (m_curr_wqe_used_strides >= m_strides_num) {
 				reload_wq();
 			}
 			return MP_LOOP_RETURN_TO_APP;
 		}
-		m_curr_size += size;
 		++m_curr_packets;
-		if (unlikely(m_stride_counter >= m_strides_num)) {
-			reload_wq();
-			return MP_LOOP_RETURN_TO_APP;
+		if (unlikely(m_curr_wqe_used_strides >= m_strides_num)) {
+			if (reload_wq()) {
+				return MP_LOOP_RETURN_TO_APP;
+			}
 		}
 	}
 	ring_logfine("mp_loop finished all iterations");
-	return MP_LOOP_DONE;
+	return MP_LOOP_LIMIT;
 }
 
-inline void ring_eth_cb::reload_wq()
+/*
+ *  all wQe are contagious in memory so we need to return to the user
+ *  true if last wqe was posted so were at the end of the buffer
+ *
+ */
+inline bool ring_eth_cb::reload_wq()
 {
 	// in current implementation after each WQe is used by the HW
 	// the ring reloads it to the HW again that why 1 is used
 	((qp_mgr_mp *)m_p_qp_mgr)->post_recv(m_curr_wq, 1);
 	m_curr_wq = (m_curr_wq + 1) % m_wq_count;
-	m_stride_counter = 0;
+	m_curr_wqe_used_strides = 0;
+	if (m_curr_wq == 0) {
+		m_all_wqes_used_strides = 0;
+		return true;
+	}
+	m_all_wqes_used_strides += m_strides_num;
+	return false;
 }
 
 ring_eth_cb::~ring_eth_cb()

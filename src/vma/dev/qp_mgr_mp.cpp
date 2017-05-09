@@ -56,8 +56,7 @@ cq_mgr* qp_mgr_mp::init_rx_cq_mgr(struct ibv_comp_channel* p_rx_comp_event_chann
 	uint32_t cq_size = align32pow2((m_p_mp_ring->get_strides_num() *
 					m_p_mp_ring->get_wq_count()));
 	return new cq_mgr_mp(m_p_mp_ring, m_p_ib_ctx_handler, cq_size,
-			     p_rx_comp_event_channel, true,
-			     m_p_mp_ring->get_stride_size());
+			     p_rx_comp_event_channel, true);
 }
 
 int qp_mgr_mp::prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr)
@@ -250,8 +249,9 @@ qp_mgr_mp::~qp_mgr_mp()
 		IF_VERBS_FAILURE(ibv_destroy_qp(m_qp)) {
 			qp_logerr("TX QP destroy failure (errno = %d %m)", -errno);
 		} ENDIF_VERBS_FAILURE;
+		m_qp = NULL;
 	}
-	m_qp = NULL;
+
 	if (m_p_wq_family) {
 		ibv_exp_release_intf_params params;
 		memset(&params, 0, sizeof(params));
@@ -260,20 +260,28 @@ qp_mgr_mp::~qp_mgr_mp()
 			qp_logerr("ibv_exp_release_intf failed (errno = %d %m)", -errno);
 		} ENDIF_VERBS_FAILURE;
 	}
+
 	if (m_p_rwq_ind_tbl) {
 		IF_VERBS_FAILURE(ibv_exp_destroy_rwq_ind_table(m_p_rwq_ind_tbl)) {
 			qp_logerr("ibv_exp_destroy_rwq_ind_table failed (errno = %d %m)", -errno);
 		} ENDIF_VERBS_FAILURE;
 	}
+
 	if (m_p_wq) {
 		IF_VERBS_FAILURE(ibv_exp_destroy_wq(m_p_wq)) {
 			qp_logerr("ibv_exp_destroy_wq failed (errno = %d %m)", -errno);
 		} ENDIF_VERBS_FAILURE;
 	}
-	delete m_p_cq_mgr_tx;
-	m_p_cq_mgr_tx = NULL;
-	delete m_p_cq_mgr_rx;
-	m_p_cq_mgr_rx = NULL;
+
+	if (m_p_cq_mgr_tx) {
+		delete m_p_cq_mgr_tx;
+		m_p_cq_mgr_tx = NULL;
+	}
+
+	if (m_p_cq_mgr_rx) {
+		delete m_p_cq_mgr_rx;
+		m_p_cq_mgr_rx = NULL;
+	}
 }
 #endif //HAVE_MP_RQ
 

@@ -64,13 +64,12 @@ const uint32_t cq_mgr_mp::UDP_OK_FLAGS = IBV_EXP_CQ_RX_IP_CSUM_OK |
 cq_mgr_mp::cq_mgr_mp(const ring_eth_cb *p_ring, ib_ctx_handler *p_ib_ctx_handler,
 		     uint32_t cq_size,
 		     struct ibv_comp_channel *p_comp_event_channel,
-		     bool is_rx, uint32_t stride_size):
+		     bool is_rx):
 		     cq_mgr_mlx5((ring_simple*)p_ring, p_ib_ctx_handler,
 				 cq_size , p_comp_event_channel, is_rx, false),
 		     m_p_ring(p_ring)
 {
 	// must call from derive in order to call derived hooks
-	m_pow_stride_size = stride_size;
 	configure(cq_size);
 }
 
@@ -91,6 +90,7 @@ void cq_mgr_mp::add_qp_rx(qp_mgr *qp)
 		throw_vma_exception("this qp is not of type qp_mgr_mp");
 	}
 	set_qp_rq(qp);
+	m_qp_rec.qp = qp;
 	if (mp_qp->post_recv(0, mp_qp->get_wq_count()) != 0) {
 		cq_logdbg("qp post recv failed");
 	} else {
@@ -105,8 +105,7 @@ void cq_mgr_mp::add_qp_rx(qp_mgr *qp)
  * if a bad checksum packet or a filler bit it will return VMA_MP_RQ_BAD_PACKET
  */
 int cq_mgr_mp::poll_mp_cq(uint16_t &size, uint32_t &strides_used,
-			  uint32_t &offset, uint32_t &flags,
-			  volatile struct mlx5_cqe64 *&out_cqe64)
+			  uint32_t &flags, volatile struct mlx5_cqe64 *&out_cqe64)
 {
 	volatile struct mlx5_cqe64 *cqe = check_cqe();
 
@@ -123,7 +122,6 @@ int cq_mgr_mp::poll_mp_cq(uint16_t &size, uint32_t &strides_used,
 				MP_RQ_NUM_STRIDES_FIELD_SHIFT;
 		if (likely(!(stride_byte_cnt & MP_RQ_FILLER_FIELD_MASK))) {
 			size = stride_byte_cnt & MP_RQ_BYTE_CNT_FIELD_MASK;
-			offset = ntohs(cqe->wqe_counter) * m_pow_stride_size;
 			flags = (!!(cqe->hds_ip_ext & MLX5_CQE_L4_OK) * IBV_EXP_CQ_RX_TCP_UDP_CSUM_OK) |
 				(!!(cqe->hds_ip_ext & MLX5_CQE_L3_OK) * IBV_EXP_CQ_RX_IP_CSUM_OK);
 			if (unlikely(flags != UDP_OK_FLAGS)) {
@@ -136,11 +134,13 @@ int cq_mgr_mp::poll_mp_cq(uint16_t &size, uint32_t &strides_used,
 			// optimize checks in ring by setting size non zero
 			size = 1;
 		}
-		increment_hw_filds();
 		prefetch((void*)&(*m_cqes)[m_cq_cons_index & (m_cq_size - 1)]);
+	} else {
+		size = 0;
+		flags = 0;
 	}
-	cq_logfine("returning packet size %d, stride used %d offset %u "
-		   "flags %d", size, strides_used, offset, flags);
+	cq_logfine("returning packet size %d, stride used %d "
+		   "flags %d", size, strides_used, flags);
 	return 0;
 }
 
@@ -149,13 +149,13 @@ cq_mgr_mp::~cq_mgr_mp()
 {
 	volatile struct mlx5_cqe64 *out_cqe64;
 	uint16_t size;
-	uint32_t strides_used = 0, offset, flags = 0;
+	uint32_t strides_used = 0, flags = 0;
 	int ret;
 	do {
-		size = 0;
-		ret = poll_mp_cq(size, strides_used, offset, flags, out_cqe64);
-	} while (size > 0 && ret >= 0);
-
+		ret = poll_mp_cq(size, strides_used, flags, out_cqe64);
+	} while (size > 0 || ret);
+	// prevents seg fault in mlx5 destructor
+	m_rq = NULL;
 }
 #endif // HAVE_MP_RQ
 

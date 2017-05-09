@@ -79,22 +79,22 @@ void ring_allocation_logic::update_res_key_by_logic()
 {
 	switch (m_res_key.m_ring_alloc_logic) {
 	case RING_LOGIC_PER_INTERFACE:
-		m_res_key.m_user_idx_key = 0;
+		m_res_key.m_user_id_key = 0;
 		if (safe_mce_sys().tcp_ctl_thread > CTL_THREAD_DISABLE)
-			m_res_key.m_user_idx_key = 1;
+			m_res_key.m_user_id_key = 1;
 		break;
 	case RING_LOGIC_PER_SOCKET:
-		m_res_key.m_user_idx_key = m_fd;
+		m_res_key.m_user_id_key = m_fd;
 		break;
 	case RING_LOGIC_PER_USER_ID:
-		// already in m_ring_attr.m_user_idx_key
+		// already in m_ring_attr.m_user_id_key
 		break;
 	case RING_LOGIC_PER_THREAD:
-		m_res_key.m_user_idx_key = pthread_self();
+		m_res_key.m_user_id_key = pthread_self();
 		break;
 	case RING_LOGIC_PER_CORE:
 	case RING_LOGIC_PER_CORE_ATTACH_THREADS:
-		m_res_key.m_user_idx_key = sched_getcpu();
+		m_res_key.m_user_id_key = sched_getcpu();
 		break;
 	BULLSEYE_EXCLUDE_BLOCK_START
 	default:
@@ -111,7 +111,7 @@ resource_allocation_key* ring_allocation_logic::create_new_key(int suggested_cpu
 		pthread_t tid = pthread_self();
 		int cpu = g_cpu_manager.reserve_cpu_for_thread(tid, suggested_cpu);
 		if (cpu >= 0) {
-			m_res_key.m_user_idx_key = cpu;
+			m_res_key.m_user_id_key = cpu;
 			return &m_res_key;
 		}
 	}
@@ -139,7 +139,7 @@ bool ring_allocation_logic::should_migrate_ring()
 	if (m_migration_candidate) {
 		count_max = CANDIDATE_STABILITY_ROUNDS;
 		update_res_key_by_logic();
-		uint64_t current_id = m_res_key.m_user_idx_key;
+		uint64_t current_id = m_res_key.m_user_id_key;
 		if (m_migration_candidate != current_id) {
 			m_migration_candidate = 0;
 			m_migration_try_count = 0;
@@ -157,13 +157,13 @@ bool ring_allocation_logic::should_migrate_ring()
 	if (!m_migration_candidate) {
 		// save current used allocation key
 		// no need to save profile, and allocation logic
-		uint64_t old_id = m_res_key.m_user_idx_key;
+		uint64_t old_id = m_res_key.m_user_id_key;
 		// check new key
 		update_res_key_by_logic();
-		if (m_res_key.m_user_idx_key == old_id || g_n_internal_thread_id == old_id) {
+		if (m_res_key.m_user_id_key == old_id || g_n_internal_thread_id == old_id) {
 			return false;
 		}
-		m_migration_candidate = m_res_key.m_user_idx_key;
+		m_migration_candidate = m_res_key.m_user_id_key;
 		return false;
 	}
 

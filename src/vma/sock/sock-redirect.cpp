@@ -561,7 +561,7 @@ NOT_IN_USE(log_level);
 
 #ifdef HAVE_MP_RQ
 extern "C"
-int vma_cyclic_buffer_read(int fd, struct vma_completion_mp_t *completion,
+int vma_cyclic_buffer_read(int fd, struct vma_completion_cb_t *completion,
 			   size_t min, size_t max, int flags)
 {
 	cq_channel_info* p_cq_ch_info = g_p_fd_collection->get_cq_channel_fd(fd);

@@ -52,18 +52,14 @@ inline volatile struct mlx5_cqe64* cq_mgr_mlx5::check_cqe(void)
 	 * */
 	if (likely((MLX5_CQE_OPCODE(cqe->op_own)) != MLX5_CQE_INVALID) &&
 	    !((MLX5_CQE_OWNER(cqe->op_own)) ^ !!(m_cq_cons_index & m_cq_size))) {
+		++m_cq_cons_index;
+		wmb();
+		++m_rq->tail;
+		*m_cq_dbell = htonl(m_cq_cons_index & 0xffffff);
 		return cqe;
 	}
 
 	return NULL;
-}
-
-inline void cq_mgr_mlx5::increment_hw_filds()
-{
-	++m_cq_cons_index;
-	wmb();
-	++m_rq->tail;
-	*m_cq_dbell = htonl(m_cq_cons_index & 0xffffff);
 }
 
 #endif //HAVE_INFINIBAND_MLX5_HW_H

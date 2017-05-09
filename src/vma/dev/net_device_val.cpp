@@ -74,18 +74,18 @@
 ring_alloc_logic_attr::ring_alloc_logic_attr():
 				m_ring_alloc_logic(RING_LOGIC_PER_INTERFACE),
 				m_ring_profile_key(0),
-				m_user_idx_key(0){}
+				m_user_id_key(0){}
 
 ring_alloc_logic_attr::ring_alloc_logic_attr(const ring_alloc_logic_attr &other):
 	m_ring_alloc_logic(other.m_ring_alloc_logic),
 	m_ring_profile_key(other.m_ring_profile_key),
-	m_user_idx_key(other.m_user_idx_key) {}
+	m_user_id_key(other.m_user_id_key) {}
 
 bool ring_alloc_logic_attr::operator==(const ring_alloc_logic_attr& other) const
 {
 	return (m_ring_alloc_logic == other.m_ring_alloc_logic &&
 		m_ring_profile_key == other.m_ring_profile_key &&
-		m_user_idx_key == other.m_user_idx_key);
+		m_user_id_key == other.m_user_id_key);
 }
 
 bool ring_alloc_logic_attr::operator!=(const ring_alloc_logic_attr& other) const
@@ -98,7 +98,7 @@ ring_alloc_logic_attr& ring_alloc_logic_attr::operator=(const ring_alloc_logic_a
 	if (this != &other) {
 		m_ring_alloc_logic = other.m_ring_alloc_logic;
 		m_ring_profile_key = other.m_ring_profile_key;
-		m_user_idx_key = other.m_user_idx_key;
+		m_user_id_key = other.m_user_id_key;
 	}
 	return *this;
 }
@@ -106,7 +106,7 @@ ring_alloc_logic_attr& ring_alloc_logic_attr::operator=(const ring_alloc_logic_a
 const std::string ring_alloc_logic_attr::to_str() const
 {
 	ostringstream s;
-	s<<"profile "<<m_ring_profile_key<<" key "<<m_user_idx_key;
+	s<<"profile "<<m_ring_profile_key<<" key "<<m_user_id_key;
 	return s.str();
 }
 
@@ -115,7 +115,7 @@ size_t ring_alloc_logic_attr::operator()(const ring_alloc_logic_attr *key) const
 	size_t h = 5381;
 	int c;
 	ostringstream s;
-	s << key->m_ring_alloc_logic << key->m_ring_profile_key << key->m_user_idx_key;
+	s << key->m_ring_alloc_logic << key->m_ring_profile_key << key->m_user_id_key;
 	std::string tmp = s.str();
 	const char* chr = tmp.c_str();
 	while ((c = *chr++))
@@ -655,7 +655,7 @@ resource_allocation_key* net_device_val::ring_key_redirection_reserve(resource_a
 	if (safe_mce_sys().ring_limit_per_interface > ring_map_size) {
 		resource_allocation_key *key2 = new resource_allocation_key;
 		// replace key to redirection key
-		key2->m_user_idx_key = ring_map_size;
+		key2->m_user_id_key = ring_map_size;
 		key2->m_ring_alloc_logic = key->m_ring_alloc_logic;
 		key2->m_ring_profile_key = key->m_ring_profile_key;
 		m_h_ring_key_redirection_map[key] = std::make_pair(key2, 1);
@@ -668,6 +668,7 @@ resource_allocation_key* net_device_val::ring_key_redirection_reserve(resource_a
 	int min_ref_count = ring_iter->second.second;
 	resource_allocation_key *min_key = ring_iter->first;
 	while (ring_iter != m_h_ring_map.end()) {
+		// redirect only to ring with the same profile
 		if (ring_iter->first->m_ring_profile_key == key->m_ring_profile_key &&
 		    ring_iter->second.second < min_ref_count) {
 			min_ref_count = ring_iter->second.second;

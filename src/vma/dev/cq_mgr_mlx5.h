@@ -67,7 +67,6 @@ public:
 	virtual uint32_t            clean_cq();
 	virtual int                 request_notification(uint64_t poll_sn);
 	virtual int                 wait_for_notification_and_process_element(uint64_t* p_cq_poll_sn, void* pv_fd_ready_array = NULL);
-	inline void                 increment_hw_filds();
 
 private:
 	void                        update_consumer_index();
@@ -77,13 +76,12 @@ protected:
 	uint32_t                    m_cq_size;
 	uint32_t                    m_cq_cons_index;
 	struct mlx5_cqe64           (*m_cqes)[];
+	struct mlx5_wq              *m_rq;
 
 private:
 	volatile uint32_t           *m_cq_dbell;
 	mem_buf_desc_t              *m_rx_hot_buffer;
-	struct mlx5_wq              *m_rq;
 	uint64_t                    *m_p_rq_wqe_idx_to_wrid;
-	bool                        m_do_cleanup;
 };
 
 #endif //HAVE_INFINIBAND_MLX5_HW_H

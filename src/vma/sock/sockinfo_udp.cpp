@@ -718,10 +718,10 @@ int sockinfo_udp::on_sockname_change(struct sockaddr *__name, socklen_t __namele
 int sockinfo_udp::set_ring_attr(vma_ring_alloc_logic_attr *attr)
 {
 	int res = 0;
-	if ((attr->comp_mask & VMA_RING_ALLLOC_MASK_RING_ENGRESS) && attr->engress) {
+	if ((attr->comp_mask & VMA_RING_ALLOC_MASK_RING_ENGRESS) && attr->engress) {
 		res -= set_ring_attr_helper(&m_ring_alloc_log_tx, attr);
 	}
-	if ((attr->comp_mask & VMA_RING_ALLLOC_MASK_RING_INGRESS) && attr->ingress) {
+	if ((attr->comp_mask & VMA_RING_ALLOC_MASK_RING_INGRESS) && attr->ingress) {
 		res -= set_ring_attr_helper(&m_ring_alloc_log_rx, attr);
 		m_ring_alloc_logic = ring_allocation_logic_rx(get_fd(), m_ring_alloc_log_rx, this);
 	}
@@ -731,7 +731,7 @@ int sockinfo_udp::set_ring_attr(vma_ring_alloc_logic_attr *attr)
 int sockinfo_udp::set_ring_attr_helper(ring_alloc_logic_attr *sock_attr,
 					vma_ring_alloc_logic_attr *user_attr)
 {
-	if (user_attr->comp_mask & VMA_RING_ALLLOC_MASK_RING_PROFILE_IDX) {
+	if (user_attr->comp_mask & VMA_RING_ALLOC_MASK_RING_PROFILE_KEY) {
 		if (sock_attr->m_ring_profile_key) {
 			si_udp_logdbg("ring_profile_key is already set and "
 				      "cannot be changed");
@@ -742,8 +742,8 @@ int sockinfo_udp::set_ring_attr_helper(ring_alloc_logic_attr *sock_attr,
 	
 	sock_attr->m_ring_alloc_logic = user_attr->ring_alloc_logic;
 
-	if (user_attr->comp_mask & VMA_RING_ALLLOC_MASK_RING_USER_ID) {
-		sock_attr->m_user_idx_key = user_attr->user_id;
+	if (user_attr->comp_mask & VMA_RING_ALLOC_MASK_RING_USER_ID) {
+		sock_attr->m_user_id_key = user_attr->user_id;
 	}
 	return 0;
 }
