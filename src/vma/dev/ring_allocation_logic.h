@@ -40,7 +40,6 @@
 #include "vma/util/sys_vars.h"
 #include "vma_extra.h"
 
-#define DEFAULT_RING_KEY 0
 #define CANDIDATE_STABILITY_ROUNDS 20
 
 #define RAL_TOSTR(to, type, owner) {char buf[100];sprintf(buf, "[%s=%p]",(type),(owner));(to) = buf;}

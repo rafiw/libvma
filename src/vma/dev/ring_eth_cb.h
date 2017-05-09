@@ -86,8 +86,9 @@ private:
 	size_t				m_buffer_size;
 	uint32_t			m_wq_count;
 	uint32_t			m_curr_wqe_used_strides;
-	uint64_t			m_p_buffer_ptr;
 	uint32_t			m_all_wqes_used_strides;
+	uint32_t			m_curr_batch_starting_stride;
+	uint64_t			m_p_buffer_ptr;
 	// These members are used to store intermediate results before
 	// returning from the user's call to get the data.
 	int				m_curr_wq;

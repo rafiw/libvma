@@ -52,6 +52,7 @@ ring_eth_cb::ring_eth_cb(in_addr_t local_if,
 			,m_res_domain(NULL)
 			,m_curr_wqe_used_strides(0)
 			,m_all_wqes_used_strides(0)
+			,m_curr_batch_starting_stride(0)
 			,m_curr_wq(0)
 			,m_curr_d_addr(NULL)
 			,m_curr_h_ptr(NULL)
@@ -125,7 +126,7 @@ void ring_eth_cb::create_resources(ring_resource_creation_info_t *p_ring_info,
 	if (m_buffer_size == 0) {
 		ring_logerr("problem with buffer parameters, m_buffer_size %zd "
 			    "strides_num %d stride size %d",
-			    m_buffer_size, m_single_wqe_log_num_of_strides, m_single_stride_log_num_of_bytes);
+			    m_buffer_size, m_strides_num, m_stride_size);
 		throw_vma_exception("bad cyclic buffer parameters");
 	}
 	memset(&m_curr_hw_timestamp, 0, sizeof(m_curr_hw_timestamp));
@@ -136,7 +137,7 @@ void ring_eth_cb::create_resources(ring_resource_creation_info_t *p_ring_info,
 	m_is_mp_ring = true;
 	ring_logdbg("use buffer parameters, m_buffer_size %zd "
 		    "strides_num %d stride size %d",
-		    m_buffer_size, m_single_wqe_log_num_of_strides, m_single_stride_log_num_of_bytes);
+		    m_buffer_size, m_strides_num, m_stride_size);
 }
 
 qp_mgr* ring_eth_cb::create_qp_mgr(const ib_ctx_handler *ib_ctx,
@@ -179,7 +180,9 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_cb_t &completion,
 		}
 		return -1;
 	}
-
+	if (!m_curr_batch_starting_stride) {
+		m_curr_batch_starting_stride = m_curr_wqe_used_strides;
+	}
 	int ret = ((cq_mgr_mp *)m_p_cq_mgr_rx)->poll_mp_cq(size,
 					m_curr_wqe_used_strides, poll_flags, cqe64);
 	// empty
@@ -193,12 +196,12 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_cb_t &completion,
 	// set it here because we might not have min packets avail in this run
 	if (likely(!(poll_flags & VMA_MP_RQ_BAD_PACKET))) {
 		if (unlikely(m_curr_d_addr == 0)) {
-			// user data is in the beginning of allocated memory +
-			// number of strides in old WQe (e.g. first WQe that was already reposted) +
-			// number of used strides in current WQe
-			// -1 for the offset of this given packet
+			// user data is located at:
+			// (the beginning of allocated memory +
+			// stride_size * (number of strides in preceding WQE (e.g. first WQe that was already reposted) +
+			//                number of used strides in current WQE before the poll_mp_cq call)
 			m_curr_d_addr = (void *)(m_p_buffer_ptr +
-					m_stride_size * (m_all_wqes_used_strides + m_curr_wqe_used_strides - 1));
+					m_stride_size * (m_all_wqes_used_strides + m_curr_batch_starting_stride));
 			if (completion.comp_mask & VMA_MP_MASK_TIMESTAMP) {
 				convert_hw_time_to_system_time(ntohll(cqe64->timestamp),
 							       &m_curr_hw_timestamp);
@@ -220,11 +223,12 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_cb_t &completion,
 			} else if (ret == MP_LOOP_DRAINED) { // no packets left
 				return 0;
 			}
+			m_curr_batch_starting_stride = m_curr_wqe_used_strides - m_curr_batch_starting_stride;
 		}
 	}
 
 	completion.payload_ptr = m_curr_d_addr;
-	completion.payload_length = m_curr_packets * m_stride_size;
+	completion.payload_length = m_curr_batch_starting_stride * m_stride_size;
 	completion.packets = m_curr_packets;
 	if (completion.comp_mask & VMA_MP_MASK_HDR_PTR) {
 		completion.headers_ptr = m_curr_h_ptr;
@@ -233,6 +237,7 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_cb_t &completion,
 	// hw_timestamp of first packet in batch
 	completion.hw_timestamp = m_curr_hw_timestamp;
 	m_curr_d_addr = 0;
+	m_curr_batch_starting_stride = 0;
 	ring_logdbg("Returning completion, buffer ptr %p, data size %zd, "
 		    "number of packets %zd WQ index %d",
 		    completion.payload_ptr, completion.payload_length,

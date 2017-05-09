@@ -194,7 +194,6 @@ int qp_mgr_mp::prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr)
 			  i, ptr, ptr + size, size, lkey);
 		ptr += size;
 	}
-	m_skip_tx_release = true;
 	return 0;
 err:
 	if (m_qp) {
@@ -273,15 +272,11 @@ qp_mgr_mp::~qp_mgr_mp()
 		} ENDIF_VERBS_FAILURE;
 	}
 
-	if (m_p_cq_mgr_tx) {
-		delete m_p_cq_mgr_tx;
-		m_p_cq_mgr_tx = NULL;
-	}
+	delete m_p_cq_mgr_tx;
+	m_p_cq_mgr_tx = NULL;
 
-	if (m_p_cq_mgr_rx) {
-		delete m_p_cq_mgr_rx;
-		m_p_cq_mgr_rx = NULL;
-	}
+	delete m_p_cq_mgr_rx;
+	m_p_cq_mgr_rx = NULL;
 }
 #endif //HAVE_MP_RQ
 

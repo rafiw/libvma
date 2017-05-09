@@ -125,7 +125,7 @@ resource_allocation_key* ring_allocation_logic::create_new_key(int suggested_cpu
  */
 bool ring_allocation_logic::should_migrate_ring()
 {
-	if (m_res_key.m_ring_alloc_logic < RING_LOGIC_PER_THREAD) {
+	if (m_res_key.m_ring_alloc_logic < RING_LOGIC_PER_USER_ID) {
 		return false;
 	}
 
@@ -139,13 +139,13 @@ bool ring_allocation_logic::should_migrate_ring()
 	if (m_migration_candidate) {
 		count_max = CANDIDATE_STABILITY_ROUNDS;
 		update_res_key_by_logic();
-		uint64_t current_id = m_res_key.m_user_id_key;
-		if (m_migration_candidate != current_id) {
+		if (m_migration_candidate != m_res_key.m_user_id_key) {
 			m_migration_candidate = 0;
 			m_migration_try_count = 0;
 			return false;
 		}
 	}
+
 
 	if (m_migration_try_count < count_max) {
 		m_migration_try_count++;

@@ -69,7 +69,6 @@
 		}}
 
 #define RDMA_CM_TIMEOUT 3500
-#define RING_KEY 0
 
 
 /**/

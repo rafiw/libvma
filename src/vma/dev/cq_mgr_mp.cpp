@@ -111,7 +111,7 @@ int cq_mgr_mp::poll_mp_cq(uint16_t &size, uint32_t &strides_used,
 
 	if (likely(cqe)) {
 		if (unlikely(MLX5_CQE_OPCODE(cqe->op_own) != MLX5_CQE_RESP_SEND)) {
-			cq_logdbg("Warning op_own is %x", cqe->op_own >> 4);
+			cq_logdbg("Warning op_own is %x", MLX5_CQE_OPCODE(cqe->op_own));
 			// optimize checks in ring by setting size non zero
 			size = 1;
 			return -1;
