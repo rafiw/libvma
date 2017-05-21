@@ -34,6 +34,7 @@
 #define SRC_VMA_DEV_RING_ETH_CB_H_
 
 #include <dev/ring_simple.h>
+#include <dev/allocator.h>
 
 #ifdef HAVE_MP_RQ
 
