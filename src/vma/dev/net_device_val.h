@@ -56,20 +56,22 @@ class L2_address;
 class ring;
 class neigh_ib_broadcast;
 
+#define RING_ALLOC_STR_SIZE	256
 class ring_alloc_logic_attr
 {
 public:
 	ring_alloc_logic_attr();
 	ring_alloc_logic_attr(ring_logic_t ring_logic);
 	ring_alloc_logic_attr(const ring_alloc_logic_attr &other);
-
+	void init();
+	size_t			hash;
 	/* ring allocation logic , per thread per fd ... */
 	ring_logic_t		m_ring_alloc_logic;
 	/* key in g_p_ring_profile */
 	vma_ring_profile_key	m_ring_profile_key;
 	/* either user_idx or key as defined in ring_logic_t */
 	uint64_t		m_user_id_key;
-	std::string		m_str;
+	char			m_str[RING_ALLOC_STR_SIZE];
 
 	bool operator==(const ring_alloc_logic_attr& other) const
 	{
@@ -96,20 +98,12 @@ public:
 	const char* to_str() const
 	{
 
-		return m_str.c_str();
+		return m_str;
 	}
 
 	size_t operator()(const ring_alloc_logic_attr *key) const
 	{
-		size_t h = 5381;
-		int c;
-		ostringstream s;
-		s << key->m_ring_alloc_logic << key->m_ring_profile_key << key->m_user_id_key;
-		std::string tmp = s.str();
-		const char* chr = tmp.c_str();
-		while ((c = *chr++))
-			h = ((h << 5) + h) + c; /* hash * 33 + c */
-		return h;
+		return key->hash;
 	}
 
 	bool operator()(const ring_alloc_logic_attr *k1, const ring_alloc_logic_attr *k2) const

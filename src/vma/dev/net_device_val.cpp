@@ -75,36 +75,42 @@ ring_alloc_logic_attr::ring_alloc_logic_attr():
 				m_ring_alloc_logic(RING_LOGIC_PER_INTERFACE),
 				m_ring_profile_key(0),
 				m_user_id_key(0) {
-	ostringstream s;
-
-	s<<"alloc logic "<<m_ring_alloc_logic<<" profile"<<m_ring_profile_key<<
-			" key "<<m_user_id_key;
-	m_str = s.str();
+			init();
 }
 
 ring_alloc_logic_attr::ring_alloc_logic_attr(ring_logic_t ring_logic):
 				m_ring_alloc_logic(ring_logic),
 				m_ring_profile_key(0),
 				m_user_id_key(0) {
-	ostringstream s;
-
-	s<<"alloc logic "<<m_ring_alloc_logic<<" profile"<<m_ring_profile_key<<
-			" key "<<m_user_id_key;
-	m_str = s.str();
+	init();
 }
 
 ring_alloc_logic_attr::ring_alloc_logic_attr(const ring_alloc_logic_attr &other):
 	m_ring_alloc_logic(other.m_ring_alloc_logic),
 	m_ring_profile_key(other.m_ring_profile_key),
 	m_user_id_key(other.m_user_id_key) {
-	ostringstream s;
-
-	s<<"alloc logic "<<m_ring_alloc_logic<<" profile"<<m_ring_profile_key<<
-			" key "<<m_user_id_key;
-	m_str = s.str();
+	init();
 }
 
+void ring_alloc_logic_attr::init()
+{
+	size_t h = 5381;
+	ostringstream s;
+	int c;
 
+	s<<"alloc logic "<<m_ring_alloc_logic<<" profile "<<m_ring_profile_key<<
+			" key "<<m_user_id_key;
+	std::string tmp = s.str();
+	strncpy(m_str, tmp.c_str(), tmp.length());
+
+	s.clear();
+	s<<m_ring_alloc_logic<<m_ring_profile_key<<m_user_id_key;
+	tmp = s.str();
+	const char* chr = tmp.c_str();
+	while ((c = *chr++))
+		h = ((h << 5) + h) + c; /* hash * 33 + c */
+	hash = h;
+}
 
 net_device_val::net_device_val(transport_type_t transport_type) : m_if_idx(0), m_local_addr(0),
 m_netmask(0), m_mtu(0), m_state(INVALID), m_p_L2_addr(NULL), m_p_br_addr(NULL),
