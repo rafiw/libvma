@@ -76,8 +76,10 @@ void buffer_pool::free_tx_lwip_pbuf_custom(struct pbuf *p_buff)
 }
 
 buffer_pool::buffer_pool(size_t buffer_count, size_t buf_size, ib_ctx_handler *p_ib_ctx_h, mem_buf_desc_owner *owner, pbuf_free_custom_fn custom_free_function) :
-			m_lock_spin("buffer_pool"), m_p_head(NULL),
-			m_n_buffers(0), m_n_buffers_created(buffer_count)
+			m_lock_spin("buffer_pool"),
+			m_n_buffers(0),
+			m_n_buffers_created(buffer_count),
+			m_p_head(NULL)
 {
 	size_t sz_aligned_element = 0;
 	uint8_t *ptr_buff, *ptr_desc;
@@ -95,8 +97,7 @@ buffer_pool::buffer_pool(size_t buffer_count, size_t buf_size, ib_ctx_handler *p
 	} else {
 		size = buf_size;
 	}
-	void *data_block = m_allocator.alloc_and_reg_mr(size + MCE_ALIGNMENT,
-							p_ib_ctx_h);
+	void *data_block = m_allocator.alloc_and_reg_mr(size, p_ib_ctx_h);
 
 
 	if (!buffer_count) return;
@@ -146,6 +147,17 @@ void buffer_pool::free_bpool_resources()
 	__log_info_func("done");
 }
 
+void buffer_pool::buffersWarn(size_t count)
+{
+	static vlog_levels_t log_severity = VLOG_DEBUG; // DEBUG severity will be used only once - at the 1st time
+
+	VLOG_PRINTF_INFO(log_severity, "ERROR! not enough buffers in the pool (requested: %lu, have: %lu, created: %lu, Buffer pool type: %s)",
+			count, m_n_buffers, m_n_buffers_created, m_p_bpool_stat->is_rx ? "Rx" : "Tx");
+
+	log_severity = VLOG_FUNC; // for all times but the 1st one
+
+	m_p_bpool_stat->n_buffer_pool_no_bufs++;
+}
 
 mem_buf_desc_t *buffer_pool::get_buffers(size_t count, uint32_t lkey)
 {
@@ -154,15 +166,7 @@ mem_buf_desc_t *buffer_pool::get_buffers(size_t count, uint32_t lkey)
 	__log_info_funcall("requested %lu, present %lu, created %lu", count, m_n_buffers, m_n_buffers_created);
 
 	if (unlikely(m_n_buffers < count)) {
-		static vlog_levels_t log_severity = VLOG_DEBUG; // DEBUG severity will be used only once - at the 1st time
-
-		VLOG_PRINTF_INFO(log_severity, "ERROR! not enough buffers in the pool (requested: %lu, have: %lu, created: %lu, Buffer pool type: %s)",
-				count, m_n_buffers, m_n_buffers_created, m_p_bpool_stat->is_rx ? "Rx" : "Tx");
-
-		log_severity = VLOG_FUNC; // for all times but the 1st one
-
-		m_p_bpool_stat->n_buffer_pool_no_bufs++;
-
+		buffersWarn(count);
 		return NULL;
 	}
 
@@ -188,27 +192,16 @@ mem_buf_desc_t *buffer_pool::get_buffers(size_t count, uint32_t lkey)
 	return head;
 }
 
-mem_buf_desc_t *buffer_pool::get_buffers_thread_safe(size_t count, ib_ctx_handler *p_ib_ctx_h)
-{
-	auto_unlocker lock(m_lock_spin);
-	return get_buffers(count, find_lkey_by_ib_ctx(p_ib_ctx_h));
-}
-
 mem_buf_desc_t *buffer_pool::get_buffers_thread_safe(size_t count, uint32_t lkey)
 {
 	auto_unlocker lock(m_lock_spin);
 	return get_buffers(count, lkey);
 }
 
-inline uint32_t buffer_pool::find_lkey_by_ib_ctx(ib_ctx_handler* p_ib_ctx_h)
-{
-	return m_allocator.find_lkey_by_ib_ctx(p_ib_ctx_h);
-}
-
 uint32_t buffer_pool::find_lkey_by_ib_ctx_thread_safe(ib_ctx_handler* p_ib_ctx_h)
 {
 	auto_unlocker lock(m_lock_spin);
-	return find_lkey_by_ib_ctx(p_ib_ctx_h);
+	return m_allocator.find_lkey_by_ib_ctx(p_ib_ctx_h);
 }
 
 #if _BullseyeCoverage
@@ -372,21 +365,15 @@ void buffer_pool::put_buffers_thread_safe(descq_t *buffers, size_t count)
 	put_buffers(buffers, count);
 }
 
-void buffer_pool::put_buffers_after_deref(descq_t *pDeque)
+void buffer_pool::put_buffers_after_deref_thread_safe(descq_t *pDeque)
 {
-	// Assume locked owner!!!
+	auto_unlocker lock(m_lock_spin);
 	while (!pDeque->empty()) {
 		mem_buf_desc_t * list = pDeque->get_and_pop_front();
 		if (list->dec_ref_count() <= 1 && (list->lwip_pbuf.pbuf.ref-- <= 1)) {
 			put_buffers(list);
 		}
 	}
-}
-
-void buffer_pool::put_buffers_after_deref_thread_safe(descq_t *pDeque)
-{
-	auto_unlocker lock(m_lock_spin);
-	put_buffers_after_deref(pDeque);
 }
 
 size_t buffer_pool::get_free_count()
