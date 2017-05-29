@@ -33,13 +33,14 @@
 #ifndef SRC_VMA_DEV_ALLOCATOR_H_
 #define SRC_VMA_DEV_ALLOCATOR_H_
 
+#include <vector>
 #include "vlogger/vlogger.h"
 #include "ib_ctx_handler_collection.h"
 
 
 class ib_ctx_handler;
 
-typedef std::tr1::unordered_map<ibv_device* ,ibv_mr*> mr_map;
+typedef std::vector<ibv_mr*> mr_map;
 
 class vma_allocator {
 public:
@@ -50,9 +51,13 @@ public:
 
 	inline uint32_t find_lkey_by_ib_ctx(ib_ctx_handler *p_ib_ctx_h) const {
 		uint32_t lkey = 0;
-		mr_map::const_iterator it = m_mrs.find(p_ib_ctx_h->get_ibv_device());
-		if (likely(it != m_mrs.end())) {
-			lkey = it->second->lkey;
+		ibv_device *dev = p_ib_ctx_h->get_ibv_device();
+		mr_map::const_iterator it = m_mrs.begin();
+		for (;it != m_mrs.end(); it++) {
+			if (likely((*it)->context->device == dev)) {
+				lkey = (*it)->lkey;
+				break;
+			}
 		}
 		return lkey;
 	}

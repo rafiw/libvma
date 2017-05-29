@@ -73,6 +73,7 @@ cq_mgr::cq_mgr(ring_simple* p_ring, ib_ctx_handler* p_ib_ctx_handler, int cq_siz
 	m_transport_type(m_p_ring->get_transport_type()), m_p_next_rx_desc_poll(NULL),
 	m_n_sysvar_rx_prefetch_bytes_before_poll(safe_mce_sys().rx_prefetch_bytes_before_poll),
 	m_n_sysvar_rx_prefetch_bytes(safe_mce_sys().rx_prefetch_bytes), m_sz_transport_header(0), m_p_ib_ctx_handler(p_ib_ctx_handler),
+	m_rx_lkey(g_buffer_pool_rx->find_lkey_by_ib_ctx_thread_safe(m_p_ib_ctx_handler)),
 	m_b_sysvar_is_rx_sw_csum_on(safe_mce_sys().rx_sw_csum), m_comp_event_channel(p_comp_event_channel),
 	m_n_sysvar_rx_num_wr_to_post_recv(safe_mce_sys().rx_num_wr_to_post_recv),
 	m_n_sysvar_qp_compensation_level(safe_mce_sys().qp_compensation_level), m_b_sysvar_cq_keep_qp_full(safe_mce_sys().cq_keep_qp_full)
@@ -144,7 +145,6 @@ cq_mgr::cq_mgr(ring_simple* p_ring, ib_ctx_handler* p_ib_ctx_handler, int cq_siz
 		m_b_is_rx_hw_csum_on = vma_is_rx_hw_csum_supported(m_p_ib_ctx_handler->get_ibv_device_attr());
 		cq_logdbg("RX CSUM support = %d", m_b_is_rx_hw_csum_on);
 	}
-	m_rx_lkey = g_buffer_pool_rx->find_lkey_by_ib_ctx_thread_safe(m_p_ib_ctx_handler);
 
 	cq_logdbg("Created CQ as %s with fd[%d] and of size %d elements (ibv_cq_hndl=%p)", (m_b_is_rx?"Rx":"Tx"), get_channel_fd(), cq_size, m_p_ibv_cq);
 }

@@ -37,6 +37,7 @@
 #define MODULE_NAME	"allocator"
 
 vma_allocator::vma_allocator() : m_shmid(-1), m_data_block(NULL) {
+	m_mrs.reserve(4);
 	m_non_contig_access_mr = VMA_IBV_ACCESS_LOCAL_WRITE;
 #ifdef VMA_IBV_ACCESS_ALLOCATE_MR
 	m_is_contig_alloc = true;
@@ -187,7 +188,7 @@ bool vma_allocator::register_memory(size_t size, ib_ctx_handler *p_ib_ctx_h,
 				return false;
 			}
 		}
-		m_mrs[mr->context->device] = mr;
+		m_mrs.push_back(mr);
 		if (!m_data_block) { // contig pages mode
 			m_data_block = mr->addr;
 		}
@@ -224,7 +225,7 @@ bool vma_allocator::register_memory(size_t size, ib_ctx_handler *p_ib_ctx_h,
 			}
 		}
 		for (size_t i = 0; i < num_devices; ++i) {
-			m_mrs[mrs[i]->context->device] = mrs[i];
+			m_mrs.push_back(mrs[i]);
 		}
 	}
 	return true;
@@ -234,8 +235,7 @@ vma_allocator::~vma_allocator() {
 	// Unregister memory
 	mr_map::iterator iter_mrs;
 	for (iter_mrs = m_mrs.begin(); iter_mrs != m_mrs.end(); ++iter_mrs) {
-
-		ibv_mr *mr = iter_mrs->second;
+		ibv_mr *mr = *iter_mrs;
 		ib_ctx_handler* p_ib_ctx_handler =
 				g_p_ib_ctx_handler_collection->get_ib_ctx(mr->context);
 		if (!p_ib_ctx_handler->is_removed()) {
