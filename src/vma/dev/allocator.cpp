@@ -36,8 +36,11 @@
 
 #define MODULE_NAME	"allocator"
 
-vma_allocator::vma_allocator() : m_shmid(-1), m_data_block(NULL) {
-	m_mrs.reserve(4);
+vma_allocator::vma_allocator() :
+		mr_list(NULL),
+		mr_list_len(0),
+		m_shmid(-1),
+		m_data_block(NULL) {
 	m_non_contig_access_mr = VMA_IBV_ACCESS_LOCAL_WRITE;
 #ifdef VMA_IBV_ACCESS_ALLOCATE_MR
 	m_is_contig_alloc = true;
@@ -171,8 +174,10 @@ bool vma_allocator::register_memory(size_t size, ib_ctx_handler *p_ib_ctx_h,
 				    uint64_t access)
 {
 	if (p_ib_ctx_h) {
-		ibv_mr *mr = p_ib_ctx_h->mem_reg(m_data_block, size, access);
-		if (mr == NULL){
+		mr_list_len = 1;
+		mr_list = new ibv_mr*[1];
+		mr_list[0] = p_ib_ctx_h->mem_reg(m_data_block, size, access);
+		if (mr_list[0] == NULL){
 			if (m_data_block) {
 				__log_info_warn("Failed registering memory, This might happen "
 						"due to low MTT entries. Please refer to README.txt "
@@ -188,17 +193,16 @@ bool vma_allocator::register_memory(size_t size, ib_ctx_handler *p_ib_ctx_h,
 				return false;
 			}
 		}
-		m_mrs.push_back(mr);
 		if (!m_data_block) { // contig pages mode
-			m_data_block = mr->addr;
+			m_data_block = mr_list[0];
 		}
 	} else {
-		size_t num_devices = g_p_ib_ctx_handler_collection->get_num_devices();
-		ibv_mr *mrs[num_devices];
+		mr_list_len = g_p_ib_ctx_handler_collection->get_num_devices();
+		mr_list = new ibv_mr*[mr_list_len];
 
 		BULLSEYE_EXCLUDE_BLOCK_START
 		if (g_p_ib_ctx_handler_collection->mem_reg_on_all_devices(m_data_block,
-				size, mrs, num_devices, access) != num_devices) {
+				size, mr_list, mr_list_len, access) != mr_list_len) {
 			if (m_data_block) {
 				__log_info_warn("Failed registering memory, This might happen "
 						"due to low MTT entries. Please refer to README.txt "
@@ -217,15 +221,12 @@ bool vma_allocator::register_memory(size_t size, ib_ctx_handler *p_ib_ctx_h,
 		BULLSEYE_EXCLUDE_BLOCK_END
 
 		if (!m_data_block) { // contig pages mode
-			m_data_block = mrs[0]->addr;
+			m_data_block = mr_list[0]->addr;
 			if (!m_data_block) {
 				__log_info_dbg("Failed registering memory, check that OFED is "
 						"loaded successfully");
 				throw_vma_exception("Failed registering memory");
 			}
-		}
-		for (size_t i = 0; i < num_devices; ++i) {
-			m_mrs.push_back(mrs[i]);
 		}
 	}
 	return true;
@@ -233,18 +234,17 @@ bool vma_allocator::register_memory(size_t size, ib_ctx_handler *p_ib_ctx_h,
 
 vma_allocator::~vma_allocator() {
 	// Unregister memory
-	mr_map::iterator iter_mrs;
-	for (iter_mrs = m_mrs.begin(); iter_mrs != m_mrs.end(); ++iter_mrs) {
-		ibv_mr *mr = *iter_mrs;
+	for (size_t i = 0; i < mr_list_len; ++i) {
 		ib_ctx_handler* p_ib_ctx_handler =
-				g_p_ib_ctx_handler_collection->get_ib_ctx(mr->context);
+				g_p_ib_ctx_handler_collection->get_ib_ctx(mr_list[i]->context);
 		if (!p_ib_ctx_handler->is_removed()) {
-			IF_VERBS_FAILURE(ibv_dereg_mr(mr)) {
+			IF_VERBS_FAILURE(ibv_dereg_mr(mr_list[i])) {
 				__log_info_err("failed de-registering a memory region "
 						"(errno=%d %m)", errno);
 			} ENDIF_VERBS_FAILURE;
 		}
 	}
+	delete[] mr_list;
 	// Release memory
 	if (m_shmid >= 0) { // Huge pages mode
 		BULLSEYE_EXCLUDE_BLOCK_START
