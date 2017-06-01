@@ -873,9 +873,15 @@ void sockinfo::rx_add_ring_cb(flow_tuple_with_local_if &flow_key, ring* p_ring, 
 		// First map of this cq mgr
 		ring_info_t* p_ring_info = new ring_info_t();
 		m_rx_ring_map[p_ring] = p_ring_info;
+		/* m_p_rx_ring is updated in following functions:
+		 *  - rx_add_ring_cb()
+		 *  - rx_del_ring_cb()
+		 *  - do_rings_migration()
+		 */
+		if (!m_p_rx_ring)
+			m_p_rx_ring = m_rx_ring_map.begin()->first;
 		p_ring_info->refcnt = 1;
 		p_ring_info->rx_reuse_info.n_buff_num = 0;
-
 		notify_epoll = true;
 
 		// Add this new CQ channel fd to the rx epfd handle (no need to wake up any sleeping thread about this new fd)
@@ -901,19 +907,6 @@ void sockinfo::rx_add_ring_cb(flow_tuple_with_local_if &flow_key, ring* p_ring, 
 		// Increase ref count on cq_mgr object
 		rx_ring_iter->second->refcnt++;
 	}
-
-#if defined(DEFINED_VMAPOLL) || !defined(DEFINED_IBV_OLD_VERBS_MLX_OFED)
-	if (m_rx_ring_map.size() == 1) {
-		/* m_p_rx_ring is updated in following functions:
-		 *  - rx_add_ring_cb()
-		 *  - rx_del_ring_cb()
-		 *  - do_rings_migration()
-		 */
-		m_p_rx_ring = m_rx_ring_map.begin()->first;
-	} else {
-		si_logdbg("ring map size: %d", m_rx_ring_map.size());
-	}
-#endif // DEFINED_VMAPOLL || !DEFINED_IBV_OLD_VERBS_MLX_OFED
 
 	unlock_rx_q();
 	m_rx_ring_map_lock.unlock();
