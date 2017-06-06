@@ -45,15 +45,18 @@
 #define qp_logfuncall		__log_info_funcall
 
 
-#ifndef DEFINED_IBV_OLD_VERBS_MLX_OFED
+#ifdef HAVE_MP_RQ
 
 
 cq_mgr* qp_mgr_mp::init_rx_cq_mgr(struct ibv_comp_channel* p_rx_comp_event_channel)
 {
-	int cq_size = ((1 << m_p_mp_ring->get_strides_num()) *
-		       m_p_mp_ring->get_wq_count()) + 1;
+	// CQ size should be aligned to power of 2 due to PRM
+	// also it size is the max CQs we can hold at once
+	// this equals to number of strides in WQe * WQ's
+	uint32_t cq_size = align32pow2((m_p_mp_ring->get_strides_num() *
+					m_p_mp_ring->get_wq_count()));
 	return new cq_mgr_mp(m_p_mp_ring, m_p_ib_ctx_handler, cq_size,
-				      p_rx_comp_event_channel, true);
+			     p_rx_comp_event_channel, true);
 }
 
 int qp_mgr_mp::prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr)
@@ -98,9 +101,9 @@ int qp_mgr_mp::prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr)
 	wq_init_attr.comp_mask |= IBV_EXP_CREATE_WQ_MP_RQ;
 	wq_init_attr.mp_rq.use_shift = IBV_EXP_MP_RQ_NO_SHIFT;
 	wq_init_attr.mp_rq.single_wqe_log_num_of_strides =
-				m_p_mp_ring->get_strides_num();
+				m_p_mp_ring->get_single_wqe_log_num_of_strides();
 	wq_init_attr.mp_rq.single_stride_log_num_of_bytes =
-				m_p_mp_ring->get_stride_size();
+				m_p_mp_ring->get_single_stride_log_num_of_bytes();
 
 	m_p_wq = ibv_exp_create_wq(m_p_ib_ctx_handler->get_ibv_context(),
 			&wq_init_attr);
@@ -178,8 +181,8 @@ int qp_mgr_mp::prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr)
 	BULLSEYE_EXCLUDE_BLOCK_END
 	// initlize the sge, the same sg will be used for all operations
 	ptr = (uint8_t *)(((unsigned long)m_p_mp_ring->get_mem_block()));
-	stride_size = 1 << m_p_mp_ring->get_stride_size();
-	strides_num = 1 << m_p_mp_ring->get_strides_num();
+	stride_size = m_p_mp_ring->get_stride_size();
+	strides_num = m_p_mp_ring->get_strides_num();
 	size = stride_size * strides_num;
 
 	lkey = m_p_mp_ring->get_mem_lkey(m_p_ib_ctx_handler);
@@ -191,7 +194,6 @@ int qp_mgr_mp::prepare_ibv_qp(vma_ibv_qp_init_attr& qp_init_attr)
 			  i, ptr, ptr + size, size, lkey);
 		ptr += size;
 	}
-	m_skip_tx_release = true;
 	return 0;
 err:
 	if (m_qp) {
@@ -246,8 +248,9 @@ qp_mgr_mp::~qp_mgr_mp()
 		IF_VERBS_FAILURE(ibv_destroy_qp(m_qp)) {
 			qp_logerr("TX QP destroy failure (errno = %d %m)", -errno);
 		} ENDIF_VERBS_FAILURE;
+		m_qp = NULL;
 	}
-	m_qp = NULL;
+
 	if (m_p_wq_family) {
 		ibv_exp_release_intf_params params;
 		memset(&params, 0, sizeof(params));
@@ -256,21 +259,25 @@ qp_mgr_mp::~qp_mgr_mp()
 			qp_logerr("ibv_exp_release_intf failed (errno = %d %m)", -errno);
 		} ENDIF_VERBS_FAILURE;
 	}
+
 	if (m_p_rwq_ind_tbl) {
 		IF_VERBS_FAILURE(ibv_exp_destroy_rwq_ind_table(m_p_rwq_ind_tbl)) {
 			qp_logerr("ibv_exp_destroy_rwq_ind_table failed (errno = %d %m)", -errno);
 		} ENDIF_VERBS_FAILURE;
 	}
+
 	if (m_p_wq) {
 		IF_VERBS_FAILURE(ibv_exp_destroy_wq(m_p_wq)) {
 			qp_logerr("ibv_exp_destroy_wq failed (errno = %d %m)", -errno);
 		} ENDIF_VERBS_FAILURE;
 	}
+
 	delete m_p_cq_mgr_tx;
 	m_p_cq_mgr_tx = NULL;
+
 	delete m_p_cq_mgr_rx;
 	m_p_cq_mgr_rx = NULL;
 }
-#endif
+#endif //HAVE_MP_RQ
 
 

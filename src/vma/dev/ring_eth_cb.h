@@ -30,12 +30,20 @@
  * SOFTWARE.
  */
 
-#ifndef SRC_VMA_DEV_RING_ETH_MP_H_
-#define SRC_VMA_DEV_RING_ETH_MP_H_
+#ifndef SRC_VMA_DEV_RING_ETH_CB_H_
+#define SRC_VMA_DEV_RING_ETH_CB_H_
 
 #include <dev/ring_simple.h>
 
-#ifndef DEFINED_IBV_OLD_VERBS_MLX_OFED
+#ifdef HAVE_MP_RQ
+
+#define VMA_MP_RQ_BAD_PACKET		(1 << 31) // last bit
+
+enum mp_loop_result {
+	MP_LOOP_DRAINED,
+	MP_LOOP_LIMIT,
+	MP_LOOP_RETURN_TO_APP,
+};
 
 class cq_mgr_mp;
 
@@ -46,17 +54,19 @@ public:
 		    ring_resource_creation_info_t *p_ring_info, int count,
 		    bool active, uint16_t vlan, uint32_t mtu,
 		    ring *parent = NULL) throw (vma_error);
-	virtual ~ring_eth_cb();
-	struct ibv_exp_res_domain* get_res_domain() const {return m_res_domain;};
-	uint32_t get_wq_count() const {return m_wq_count;};
-	void* get_mem_block() const {return alloc.get_ptr();};
-	uint8_t get_strides_num() const {return m_strides_num;};
-	uint8_t get_stride_size() const {return m_stride_size;};
-	uint32_t get_mem_lkey(ib_ctx_handler* ib_ctx) const {return alloc.find_lkey_by_ib_ctx(ib_ctx);}
+	virtual		~ring_eth_cb();
+	ibv_exp_res_domain* get_res_domain() const {return m_res_domain;};
+	uint32_t	get_wq_count() const {return m_wq_count;};
+	void*		get_mem_block() const {return m_alloc.get_ptr();};
+	uint8_t		get_single_wqe_log_num_of_strides() const {return m_single_wqe_log_num_of_strides;};
+	uint32_t	get_strides_num() const {return m_strides_num;};
+	uint8_t		get_single_stride_log_num_of_bytes() const {return m_single_stride_log_num_of_bytes;};
+	uint32_t	get_stride_size() const {return m_stride_size;};
+	uint32_t	get_mem_lkey(ib_ctx_handler* ib_ctx) const {return m_alloc.find_lkey_by_ib_ctx(ib_ctx);}
 	virtual int	drain_and_proccess(cq_type_t cq_type);
 	virtual int	poll_and_process_element_rx(uint64_t* p_cq_poll_sn, void* pv_fd_ready_array = NULL);
 	int		cyclic_buffer_read(vma_completion_mp_t &completion,
-					   size_t min, size_t max, int &flags);
+					   size_t min, size_t max, int flags);
 
 protected:
 	void		create_resources(ring_resource_creation_info_t* p_ring_info,
@@ -65,12 +75,18 @@ protected:
 					      uint8_t port_num,
 					      struct ibv_comp_channel* p_rx_comp_event_channel) throw (vma_error);
 private:
-	vma_allocator			alloc;
-	uint8_t				m_strides_num;
-	uint8_t				m_stride_size;
+	vma_allocator			m_alloc;
+	uint8_t				m_single_wqe_log_num_of_strides;
+	uint8_t				m_single_stride_log_num_of_bytes;
+	uint32_t			m_stride_size;
+	uint32_t			m_strides_num;
 	struct ibv_exp_res_domain*	m_res_domain;
 	size_t				m_buffer_size;
 	uint32_t			m_wq_count;
+	uint32_t			m_curr_wqe_used_strides;
+	uint32_t			m_all_wqes_used_strides;
+	uint32_t			m_curr_batch_starting_stride;
+	uint64_t			m_p_buffer_ptr;
 	//save results that weren't returned yet
 	int				m_curr_wq;
 	void*				m_curr_d_addr;
@@ -78,9 +94,9 @@ private:
 	size_t				m_curr_packets;
 	size_t				m_curr_size;
 	struct timespec			m_curr_hw_timestamp;
-	inline int			mp_loop(size_t limit);
-	inline void			reload_wq();
+	inline mp_loop_result		mp_loop(size_t limit);
+	inline bool			reload_wq();
 };
 
-#endif /* DEFINED_IBV_OLD_VERBS_MLX_OFED */
-#endif /* SRC_VMA_DEV_RING_ETH_MP_H_ */
+#endif /* HAVE_MP_RQ */
+#endif /* SRC_VMA_DEV_RING_ETH_CB_H_ */

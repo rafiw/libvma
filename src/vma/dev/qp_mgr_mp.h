@@ -36,7 +36,7 @@
 #include "dev/qp_mgr.h"
 #include "dev/ring_eth_cb.h"
 
-#ifndef DEFINED_IBV_OLD_VERBS_MLX_OFED
+#ifdef HAVE_MP_RQ
 
 class qp_mgr_mp : public qp_mgr_eth
 {
@@ -69,6 +69,6 @@ private:
 	struct ibv_exp_wq_family*	m_p_wq_family;
 	struct ibv_exp_rwq_ind_table*	m_p_rwq_ind_tbl;
 };
-#endif
+#endif /* HAVE_MP_RQ */
 
 #endif /* SRC_VMA_DEV_QP_MGR_MP_H_ */

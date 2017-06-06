@@ -104,6 +104,7 @@ friend class cq_mgr;
 #endif // DEFINED_VMAPOLL
 
 friend class cq_mgr_mlx5;
+friend class cq_mgr_mp;
 public:
 	qp_mgr(const ring_simple* p_ring, const ib_ctx_handler* p_context, const uint8_t port_num, const uint32_t tx_num_wr);
 	virtual ~qp_mgr();

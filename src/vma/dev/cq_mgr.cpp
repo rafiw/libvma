@@ -79,6 +79,7 @@ cq_mgr::cq_mgr(ring_simple* p_ring, ib_ctx_handler* p_ib_ctx_handler, int cq_siz
 	,m_b_is_rx_hw_csum_on(false)
 	,m_n_sysvar_cq_poll_batch_max(safe_mce_sys().cq_poll_batch_max)
 	,m_n_sysvar_progress_engine_wce_max(safe_mce_sys().progress_engine_wce_max)
+	// use local copy of stats by default (on rx cq get shared memory stats)
 	,m_p_cq_stat(&m_cq_stat_static)
 	,m_transport_type(m_p_ring->get_transport_type())
 	,m_p_next_rx_desc_poll(NULL)
@@ -86,6 +87,15 @@ cq_mgr::cq_mgr(ring_simple* p_ring, ib_ctx_handler* p_ib_ctx_handler, int cq_siz
 	,m_n_sysvar_rx_prefetch_bytes(safe_mce_sys().rx_prefetch_bytes)
 	,m_sz_transport_header(0)
 	,m_p_ib_ctx_handler(p_ib_ctx_handler)
+#ifdef DEFINED_VMAPOLL
+	,m_rx_hot_buff(NULL)
+	,m_qp(NULL)
+	,m_mlx5_cq(NULL)
+	,m_cq_sz(cq_size)
+	,m_cq_ci(0)
+	,m_mlx5_cqes(NULL)
+	,m_cq_db(0)
+#endif
 	,m_b_sysvar_is_rx_sw_csum_on(safe_mce_sys().rx_sw_csum)
 	,m_comp_event_channel(p_comp_event_channel)
 	,m_b_notification_armed(false)
@@ -106,14 +116,6 @@ cq_mgr::cq_mgr(ring_simple* p_ring, ib_ctx_handler* p_ib_ctx_handler, int cq_siz
 
 void cq_mgr::configure(int cq_size)
 {
-
-#ifdef DEFINED_VMAPOLL
-	m_qp = NULL;
-	m_rx_hot_buff = NULL;
-	m_cq_sz = cq_size;
-	m_cq_ci = 0;
-#endif
-
 	vma_ibv_cq_init_attr attr;
 	memset(&attr, 0, sizeof(attr));
 
@@ -126,9 +128,6 @@ void cq_mgr::configure(int cq_size)
 		cq_logpanic("ibv_create_cq failed (errno=%d %m)", errno);
 	}
 	BULLSEYE_EXCLUDE_BLOCK_END
-	if (post_ibv_cq()) {
-		cq_logpanic("post_ibv_cq failed (errno=%d %m)", errno);
-	}
 
 	switch (m_transport_type) {
 	case VMA_TRANSPORT_IB:
@@ -163,7 +162,7 @@ void cq_mgr::configure(int cq_size)
 	cq_logdbg("Created CQ as %s with fd[%d] and of size %d elements (ibv_cq_hndl=%p)", (m_b_is_rx?"Rx":"Tx"), get_channel_fd(), cq_size, m_p_ibv_cq);
 }
 
-void cq_mgr::prep_ibv_cq(vma_ibv_cq_init_attr& attr)
+void cq_mgr::prep_ibv_cq(vma_ibv_cq_init_attr& attr) const
 {
 	if (m_p_ib_ctx_handler->get_ctx_time_converter_status()) {
 		init_vma_ibv_cq_init_attr(&attr);
@@ -1528,3 +1527,4 @@ void cq_mgr::mlx5_init_cq()
 	m_mlx5_cqes = (volatile struct mlx5_cqe64 (*)[])(uintptr_t)m_mlx5_cq->active_buf->buf;
 }
 #endif // DEFINED_VMAPOLL
+
