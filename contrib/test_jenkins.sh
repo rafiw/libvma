@@ -59,7 +59,7 @@ jenkins_test_cppcheck=${jenkins_test_cppcheck:="yes"}
 jenkins_test_csbuild=${jenkins_test_csbuild:="yes"}
 jenkins_test_run=${jenkins_test_run:="yes"}
 jenkins_test_gtest=${jenkins_test_gtest:="yes"}
-jenkins_test_vg=${jenkins_test_vg:="no"}
+jenkins_test_vg=${jenkins_test_vg:="yes"}
 jenkins_test_style=${jenkins_test_style:="no"}
 jenkins_test_tool=${jenkins_test_tool:="yes"}
 
@@ -137,6 +137,16 @@ for target_v in "${target_list[@]}"; do
 	        rc=$((rc + $ret))
 	    fi
 	fi
+	if [ 8 -lt "$jenkins_opt_exit" -o "$rc" -eq 0 ]; then
+	    if [ "$jenkins_test_vg" = "yes" ]; then
+	        $WORKSPACE/contrib/jenkins_tests/vg.sh
+	        ret=$?
+	        if [ $ret -gt 0 ]; then
+	           do_err "case: [vg: rc=$rc]"
+	        fi
+	        rc=$((rc + $ret))
+	    fi
+    fi
     if [ 3 -lt "$jenkins_opt_exit" -o "$rc" -eq 0 ]; then
 	    if [ "$jenkins_test_cov" = "yes" ]; then
 	        $WORKSPACE/contrib/jenkins_tests/cov.sh
@@ -183,16 +193,6 @@ for target_v in "${target_list[@]}"; do
 	        ret=$?
 	        if [ $ret -gt 0 ]; then
 	           do_err "case: [gtest: rc=$rc]"
-	        fi
-	        rc=$((rc + $ret))
-	    fi
-    fi
-    if [ 8 -lt "$jenkins_opt_exit" -o "$rc" -eq 0 ]; then
-	    if [ "$jenkins_test_vg" = "yes" ]; then
-	        $WORKSPACE/contrib/jenkins_tests/vg.sh
-	        ret=$?
-	        if [ $ret -gt 0 ]; then
-	           do_err "case: [vg: rc=$rc]"
 	        fi
 	        rc=$((rc + $ret))
 	    fi
