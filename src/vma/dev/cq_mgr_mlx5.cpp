@@ -54,10 +54,10 @@ cq_mgr_mlx5::cq_mgr_mlx5(ring_simple* p_ring, ib_ctx_handler* p_ib_ctx_handler,
 			 bool is_rx, bool call_configure):
 	cq_mgr(p_ring, p_ib_ctx_handler, cq_size, p_comp_event_channel, is_rx, call_configure)
 	,m_cq_size(cq_size)
-	,m_cq_cons_index(0)
 	,m_cqes(NULL)
-	,m_cq_dbell(NULL)
 	,m_rq(NULL)
+	,m_cq_cons_index(0)
+	,m_cq_dbell(NULL)
 	,m_rx_hot_buffer(NULL)
 	,m_p_rq_wqe_idx_to_wrid(NULL)
 {

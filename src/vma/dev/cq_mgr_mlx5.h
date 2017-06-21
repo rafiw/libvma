@@ -74,10 +74,10 @@ private:
 
 protected:
 	uint32_t                    m_cq_size;
-	uint32_t                    m_cq_cons_index;
 	struct mlx5_cqe64           (*m_cqes)[];
-	volatile uint32_t           *m_cq_dbell;
 	struct mlx5_wq              *m_rq;
+	uint32_t                    m_cq_cons_index;
+	volatile uint32_t           *m_cq_dbell;
 
 private:
 	mem_buf_desc_t              *m_rx_hot_buffer;
