@@ -41,6 +41,7 @@
 #include "vma/dev/time_converter_ib_ctx.h"
 #include "vma/dev/time_converter_ptp.h"
 #include "vma/util/verbs_extra.h"
+#include "util/valgrind.h"
 #include "vma/event/event_handler_manager.h"
 
 #define MODULE_NAME             "ib_ctx_handler"
@@ -162,6 +163,7 @@ ibv_mr* ib_ctx_handler::mem_reg(void *addr, size_t length, uint64_t access)
 {
 	// Register the memory block with the HCA on this ibv_device
 	ibch_logfunc("(dev=%p) addr=%p, length=%d, m_p_ibv_pd=%p on dev=%p", m_p_ibv_device, addr, length, m_p_ibv_pd, m_p_ibv_pd->context->device);
+	ibv_mr *mr;
 #ifdef DEFINED_IBV_EXP_ACCESS_ALLOCATE_MR
 	struct ibv_exp_reg_mr_in in;
 	memset(&in, 0 ,sizeof(in));
@@ -169,10 +171,24 @@ ibv_mr* ib_ctx_handler::mem_reg(void *addr, size_t length, uint64_t access)
 	in.addr = addr;
 	in.length = length;
 	in.pd = m_p_ibv_pd;
-	return ibv_exp_reg_mr(&in);
+	mr = ibv_exp_reg_mr(&in);
 #else
-	return ibv_reg_mr(m_p_ibv_pd, addr, length, access);
+	mr = ibv_reg_mr(m_p_ibv_pd, addr, length, access);
 #endif
+	VALGRIND_MAKE_MEM_DEFINED(mr, sizeof(ibv_mr));
+	return mr;
+}
+
+void ib_ctx_handler::mem_dereg(ibv_mr *mr)
+{
+	if (is_removed()) {
+		return;
+	}
+	IF_VERBS_FAILURE(ibv_dereg_mr(mr)) {
+		ibch_logerr("failed de-registering a memory region "
+				"(errno=%d %m)", errno);
+	} ENDIF_VERBS_FAILURE;
+	VALGRIND_MAKE_MEM_UNDEFINED(mr, sizeof(ibv_mr));
 }
 
 void ib_ctx_handler::set_flow_tag_capability(bool flow_tag_capability)
