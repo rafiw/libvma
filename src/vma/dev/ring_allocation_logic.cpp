@@ -127,7 +127,7 @@ resource_allocation_key* ring_allocation_logic::create_new_key(int suggested_cpu
  */
 bool ring_allocation_logic::should_migrate_ring()
 {
-	if (m_res_key.get_ring_alloc_logic() < RING_LOGIC_PER_USER_ID) {
+	if (m_res_key.get_ring_alloc_logic() < RING_LOGIC_PER_THREAD) {
 		return false;
 	}
 
