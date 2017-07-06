@@ -580,6 +580,8 @@ struct __attribute__ ((packed)) vma_api_t {
 	 * @return 0 on success -1 on failure
 	 */
 	int (*vma_add_ring_profile)(struct vma_ring_type_attr *profile, int *key);
+	int (*vma_cyclic_buffer_read_one)(int fd, vma_completion_cb_t *completion, struct sockaddr *__from,
+			    int flags);
 };
 
 

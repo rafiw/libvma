@@ -582,6 +582,25 @@ int vma_cyclic_buffer_read(int fd, struct vma_completion_cb_t *completion,
 	}
 }
 
+int vma_cyclic_buffer_read_one(int fd, vma_completion_cb_t *completion, struct sockaddr *__from, int flags)
+{
+	cq_channel_info* p_cq_ch_info = g_p_fd_collection->get_cq_channel_fd(fd);
+	if (p_cq_ch_info) {
+		ring_eth_cb* p_ring = (ring_eth_cb *)p_cq_ch_info->get_ring();
+		if (likely(p_ring && p_ring->is_mp_ring())) {
+			return p_ring->cyclic_buffer_read_one(*completion, __from, flags);
+		} else {
+			vlog_printf(VLOG_ERROR, "could not find ring, got fd "
+					"%d\n", fd);
+			return -1;
+		}
+	} else {
+		vlog_printf(VLOG_ERROR, "could not find p_cq_ch_info, got fd "
+							"%d\n", fd);
+		return -1;
+	}
+}
+
 #endif // HAVE_MP_RQ
 
 int vma_add_ring_profile(vma_ring_type_attr *profile, vma_ring_profile_key *res)
@@ -907,6 +926,7 @@ int getsockopt(int __fd, int __level, int __optname,
 
 #ifdef HAVE_MP_RQ
 		vma_api->vma_cyclic_buffer_read = vma_cyclic_buffer_read;
+		vma_api->vma_cyclic_buffer_read_one = vma_cyclic_buffer_read_one;
 #endif // HAVE_MP_RQ
 		*((vma_api_t**)__optval) = vma_api;
 		return 0;

@@ -309,6 +309,52 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_cb_t &completion,
 	return 0;
 }
 
+int ring_eth_cb::cyclic_buffer_read_one(vma_completion_cb_t &completion,
+					struct sockaddr *__from,
+					int flags)
+{
+	uint32_t poll_flags = 0;
+	uint16_t size;
+	volatile struct mlx5_cqe64 *cqe64;
+	NOT_IN_USE(flags);
+
+	m_curr_batch_starting_stride = m_curr_wqe_used_strides;
+	int ret = ((cq_mgr_mp *)m_p_cq_mgr_rx)->poll_mp_cq(size,
+					m_curr_wqe_used_strides, poll_flags, cqe64);
+	// empty
+	if (unlikely(ret == -1)) {
+		ring_logdbg("poll_mp_cq failed with errno %m", errno);
+		return -1;
+	}
+	if (size == 0) {
+		return 0;
+	}
+
+	completion.payload_ptr = (void *)(m_p_buffer_ptr + m_stride_size *
+			(m_all_wqes_used_strides + m_curr_batch_starting_stride));
+	completion.payload_length = size;
+	completion.packets = 1;
+	struct ethhdr* p_eth_h = (struct ethhdr*)completion.payload_ptr;
+	iphdr* p_ip_h = (iphdr*)((uint8_t*)(p_eth_h) + 14);
+	udphdr* p_udp_h = (struct udphdr*)((uint8_t*)p_ip_h + 20);
+	sockaddr_in *from = (sockaddr_in *) __from;
+	from->sin_family = AF_INET;
+	from->sin_port = p_udp_h->source;
+	from->sin_addr.s_addr = p_ip_h->saddr;
+//	p_rx_wc_buf_desc->rx.dst.sin_family      = AF_INET;
+//					p_rx_wc_buf_desc->rx.dst.sin_port        = p_udp_h->dest;
+//					p_rx_wc_buf_desc->rx.dst.sin_addr.s_addr = p_ip_h->daddr;
+
+	if (completion.comp_mask & VMA_MP_MASK_TIMESTAMP) {
+		convert_hw_time_to_system_time(ntohll(cqe64->timestamp),
+				&completion.hw_timestamp);
+	}
+	if (unlikely(m_curr_wqe_used_strides >= m_strides_num)) {
+		reload_wq();
+	}
+	return 0;
+}
+
 ring_eth_cb::~ring_eth_cb()
 {
 	struct ibv_exp_destroy_res_domain_attr attr;
