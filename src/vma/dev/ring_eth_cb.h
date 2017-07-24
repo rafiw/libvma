@@ -47,6 +47,7 @@
 #include <vector>
 
 typedef std::vector<timespec> time_vec;
+typedef std::vector<uint64_t> raw_vec;
 #endif
 
 enum mp_loop_result {
@@ -107,6 +108,7 @@ private:
 #ifdef ENABLE_MP_RQ_TIMSTAMP_DUMP
 	size_t				m_vec_start_size;
 	time_vec			m_ts_collector;
+	raw_vec				m_raw_collector;
 	char				m_path[PATH_MAX];
 	time_t				m_start_time;
 	void				dump_cqe_timestamp();

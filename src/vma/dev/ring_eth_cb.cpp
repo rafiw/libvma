@@ -64,6 +64,7 @@ ring_eth_cb::ring_eth_cb(in_addr_t local_if,
 	// max data size
 	m_vec_start_size = m_strides_num * m_wq_count;
 	m_ts_collector.reserve(m_vec_start_size);
+	m_raw_collector.reserve(m_vec_start_size);
 	struct tm* timeinfo;
 	time(&m_start_time);
 	timeinfo = localtime(&m_start_time);
@@ -210,6 +211,7 @@ inline mp_loop_result ring_eth_cb::mp_loop(size_t limit)
 		timespec t;
 		convert_hw_time_to_system_time(ntohll(cqe64->timestamp), &t);
 		m_ts_collector.push_back(t);
+		m_raw_collector.push_back(ntohll(cqe64->timestamp));
 #endif
 		if (unlikely(m_curr_wqe_used_strides >= m_strides_num)) {
 			if (reload_wq()) {
@@ -288,6 +290,7 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_cb_t &completion,
 							       &m_curr_hw_timestamp);
 #ifdef ENABLE_MP_RQ_TIMSTAMP_DUMP
 				m_ts_collector.push_back(m_curr_hw_timestamp);
+				m_raw_collector.push_back(ntohll(cqe64->timestamp));
 #endif
 			}
 			// When UMR will be added this will be different
@@ -341,11 +344,13 @@ void ring_eth_cb::dump_cqe_timestamp()
 	// iterate and dump result
 	std::ofstream file(m_path, std::ios::out | std::ios::app);
 	time_vec::iterator it = m_ts_collector.begin();
-	for (;it != m_ts_collector.end();++it) {
-		file<<uint64_t((uint64_t(it->tv_sec - m_start_time)) * 1000000000 +
-			it->tv_nsec)<<std::endl;
+	raw_vec::iterator it2 = m_raw_collector.begin();
+	for (;it != m_ts_collector.end();++it,++it2) {
+		file<<uint64_t((uint64_t(it->tv_sec)) * 1000000000 +
+			it->tv_nsec)<<" "<<*it2<<std::endl;
 	}
 	m_ts_collector.clear();
+	m_raw_collector.clear();
 }
 #endif
 
