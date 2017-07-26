@@ -108,7 +108,8 @@ private:
 #ifdef ENABLE_MP_RQ_TIMSTAMP_DUMP
 	size_t				m_vec_start_size;
 	time_vec			m_ts_collector;
-	raw_vec				m_raw_collector;
+	uint64_t			*m_raw_collector;
+	size_t				m_raw_collector_idx;
 	char				m_path[PATH_MAX];
 	time_t				m_start_time;
 	void				dump_cqe_timestamp();
