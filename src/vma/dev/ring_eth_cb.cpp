@@ -62,9 +62,11 @@ ring_eth_cb::ring_eth_cb(in_addr_t local_if,
 	create_resources(p_ring_info, active);
 #ifdef ENABLE_MP_RQ_TIMSTAMP_DUMP
 	// max data size
-	m_vec_start_size = m_strides_num * m_wq_count;
-	m_ts_collector.reserve(m_vec_start_size);
-	m_raw_collector.reserve(m_vec_start_size);
+	m_vec_start_size = 2500000;
+//	m_ts_collector.reserve(m_vec_start_size);
+//	m_raw_collector.reserve(m_vec_start_size);
+	m_raw_collector_idx = 0;
+	m_raw_collector = new uint64_t[m_vec_start_size];
 	struct tm* timeinfo;
 	time(&m_start_time);
 	timeinfo = localtime(&m_start_time);
@@ -208,10 +210,10 @@ inline mp_loop_result ring_eth_cb::mp_loop(size_t limit)
 		}
 		++m_curr_packets;
 #ifdef ENABLE_MP_RQ_TIMSTAMP_DUMP
-		timespec t;
-		convert_hw_time_to_system_time(ntohll(cqe64->timestamp), &t);
-		m_ts_collector.push_back(t);
-		m_raw_collector.push_back(ntohll(cqe64->timestamp));
+//		timespec t;
+//		convert_hw_time_to_system_time(ntohll(cqe64->timestamp), &t);
+//		m_ts_collector.push_back(t);
+		m_raw_collector[m_raw_collector_idx++] = cqe64->timestamp;
 #endif
 		if (unlikely(m_curr_wqe_used_strides >= m_strides_num)) {
 			if (reload_wq()) {
@@ -289,8 +291,8 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_cb_t &completion,
 				convert_hw_time_to_system_time(ntohll(cqe64->timestamp),
 							       &m_curr_hw_timestamp);
 #ifdef ENABLE_MP_RQ_TIMSTAMP_DUMP
-				m_ts_collector.push_back(m_curr_hw_timestamp);
-				m_raw_collector.push_back(ntohll(cqe64->timestamp));
+//				m_ts_collector.push_back(m_curr_hw_timestamp);
+				m_raw_collector[m_raw_collector_idx++] = cqe64->timestamp;
 #endif
 			}
 			// When UMR will be added this will be different
@@ -306,12 +308,12 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_cb_t &completion,
 		if (!return_to_app) {
 			ret = mp_loop(min);
 #ifdef ENABLE_MP_RQ_TIMSTAMP_DUMP
-			dump_cqe_timestamp();
+			//dump_cqe_timestamp();
 #endif
 			if (ret == MP_LOOP_LIMIT) { // there might be more to drain
 				mp_loop(max);
 #ifdef ENABLE_MP_RQ_TIMSTAMP_DUMP
-				dump_cqe_timestamp();
+			//	dump_cqe_timestamp();
 #endif
 			} else if (ret == MP_LOOP_DRAINED) { // no packets left
 				return 0;
@@ -335,22 +337,30 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_cb_t &completion,
 		    "number of packets %zd WQ index %d",
 		    completion.payload_ptr, completion.payload_length,
 		    m_curr_packets, m_curr_wq);
+	dump_cqe_timestamp();
 	return 0;
 }
 
 #ifdef ENABLE_MP_RQ_TIMSTAMP_DUMP
 void ring_eth_cb::dump_cqe_timestamp()
 {
+	if (m_raw_collector_idx < 2400000)
+		return;
 	// iterate and dump result
 	std::ofstream file(m_path, std::ios::out | std::ios::app);
-	time_vec::iterator it = m_ts_collector.begin();
-	raw_vec::iterator it2 = m_raw_collector.begin();
-	for (;it != m_ts_collector.end();++it,++it2) {
-		file<<uint64_t((uint64_t(it->tv_sec)) * 1000000000 +
-			it->tv_nsec)<<" "<<*it2<<std::endl;
+	for (size_t i = 0; i < m_raw_collector_idx; i++) {
+		file<<ntohll(m_raw_collector[i])<<std::endl;
 	}
-	m_ts_collector.clear();
-	m_raw_collector.clear();
+	file.close();
+	printf("dumping\n");
+	m_raw_collector_idx = 0;
+//	time_vec::iterator it = m_ts_collector.begin();
+	/*raw_vec::iterator it = m_raw_collector.begin();
+	for (;it != m_raw_collector.end();++it) {
+		file<<*it<<std::endl;
+	}
+//	m_ts_collector.clear();
+	m_raw_collector.clear();*/
 }
 #endif
 
