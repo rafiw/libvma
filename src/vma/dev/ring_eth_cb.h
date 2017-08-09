@@ -43,13 +43,6 @@
 #define MIN_MP_WQES			2
 
 
-#ifdef ENABLE_MP_RQ_TIMSTAMP_DUMP
-#include <vector>
-
-typedef std::vector<timespec> time_vec;
-typedef std::vector<uint64_t> raw_vec;
-#endif
-
 enum mp_loop_result {
 	MP_LOOP_DRAINED,
 	MP_LOOP_LIMIT,
@@ -107,7 +100,7 @@ private:
 	struct timespec			m_curr_hw_timestamp;
 #ifdef ENABLE_MP_RQ_TIMSTAMP_DUMP
 	size_t				m_vec_start_size;
-	time_vec			m_ts_collector;
+	timespec			*m_ts_collector;
 	uint64_t			*m_raw_collector;
 	size_t				m_raw_collector_idx;
 	char				m_path[PATH_MAX];
