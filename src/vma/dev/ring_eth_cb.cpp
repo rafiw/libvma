@@ -66,8 +66,7 @@ ring_eth_cb::ring_eth_cb(in_addr_t local_if,
 //	m_ts_collector.reserve(m_vec_start_size);
 //	m_raw_collector.reserve(m_vec_start_size);
 	m_raw_collector_idx = 0;
-//	m_raw_collector = new uint64_t[m_vec_start_size];
-	m_ts_collector = new timespec[m_vec_start_size];
+	m_raw_collector = new uint64_t[m_vec_start_size];
 	struct tm* timeinfo;
 	time(&m_start_time);
 	timeinfo = localtime(&m_start_time);
@@ -211,11 +210,10 @@ inline mp_loop_result ring_eth_cb::mp_loop(size_t limit)
 		}
 		++m_curr_packets;
 #ifdef ENABLE_MP_RQ_TIMSTAMP_DUMP
-		timespec t;
-		convert_hw_time_to_system_time(ntohll(cqe64->timestamp), &t);
-		m_ts_collector[m_raw_collector_idx].tv_nsec = t.tv_nsec;
-		m_ts_collector[m_raw_collector_idx++].tv_sec = t.tv_sec;
-//		m_raw_collector[m_raw_collector_idx++] = cqe64->timestamp;
+//		timespec t;
+//		convert_hw_time_to_system_time(ntohll(cqe64->timestamp), &t);
+//		m_ts_collector.push_back(t);
+		m_raw_collector[m_raw_collector_idx++] = cqe64->timestamp;
 #endif
 		if (unlikely(m_curr_wqe_used_strides >= m_strides_num)) {
 			if (reload_wq()) {
@@ -293,10 +291,8 @@ int ring_eth_cb::cyclic_buffer_read(vma_completion_cb_t &completion,
 				convert_hw_time_to_system_time(ntohll(cqe64->timestamp),
 							       &m_curr_hw_timestamp);
 #ifdef ENABLE_MP_RQ_TIMSTAMP_DUMP
-				m_ts_collector[m_raw_collector_idx].tv_nsec = m_curr_hw_timestamp.tv_nsec;
-				m_ts_collector[m_raw_collector_idx++].tv_sec = m_curr_hw_timestamp.tv_sec;
 //				m_ts_collector.push_back(m_curr_hw_timestamp);
-//				m_raw_collector[m_raw_collector_idx++] = cqe64->timestamp;
+				m_raw_collector[m_raw_collector_idx++] = cqe64->timestamp;
 #endif
 			}
 			// When UMR will be added this will be different
@@ -350,20 +346,21 @@ void ring_eth_cb::dump_cqe_timestamp()
 {
 	if (m_raw_collector_idx < 2400000)
 		return;
+	// iterate and dump result
 	std::ofstream file(m_path, std::ios::out | std::ios::app);
-	/* iterate and dump result
 	for (size_t i = 0; i < m_raw_collector_idx; i++) {
 		file<<ntohll(m_raw_collector[i])<<std::endl;
-	}*/
-
-
-
-	for (size_t i = 0; i < m_raw_collector_idx; i++) {
-		file<<m_ts_collector[i].tv_sec<<" "<<m_ts_collector[i].tv_nsec<<endl;
 	}
-	m_raw_collector_idx = 0;
 	file.close();
 	printf("dumping\n");
+	m_raw_collector_idx = 0;
+//	time_vec::iterator it = m_ts_collector.begin();
+	/*raw_vec::iterator it = m_raw_collector.begin();
+	for (;it != m_raw_collector.end();++it) {
+		file<<*it<<std::endl;
+	}
+//	m_ts_collector.clear();
+	m_raw_collector.clear();*/
 }
 #endif
 
