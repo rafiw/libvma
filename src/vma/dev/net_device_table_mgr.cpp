@@ -115,6 +115,7 @@ net_device_table_mgr::net_device_table_mgr() :
 			free_ndtm_resources();
 			throw_vma_exception("net_device_map is empty");
 		}
+		ibv_free_device_list(dev_list);
 	}
 
 	//Print table
