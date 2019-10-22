@@ -149,6 +149,7 @@ if test "x$vma_cv_verbs" == x2; then
     CHECK_VERBS_ATTRIBUTE([IBV_EXP_DEVICE_ATTR_MAX_DM_SIZE], [infiniband/verbs_exp.h], [IBV_DM])
     CHECK_VERBS_ATTRIBUTE([IBV_EXP_QP_RATE_LIMIT], [infiniband/verbs_exp.h], [IBV_PACKET_PACING_CAPS])
     CHECK_VERBS_ATTRIBUTE([IBV_EXP_QP_SUPPORT_BURST], [infiniband/verbs_exp.h], [IBV_QP_SUPPORT_BURST])
+    CHECK_VERBS_ATTRIBUTE([IBV_EXP_QP_CREATE_CROSS_CHANNEL], [infiniband/verbs_exp.h], [CROSS_CHANNEL])
 
     #
     # Experimental Verbs CQ
@@ -191,12 +192,6 @@ if test "x$vma_cv_verbs" == x2; then
     AC_CHECK_DECL([IBV_EXP_DEVICE_CROSS_CHANNEL],
         [], [], [[#include <infiniband/verbs_exp.h>]])
     AC_MSG_CHECKING([for direct ring support])
-    AS_IF([test "x$ac_cv_have_decl_IBV_EXP_DEVICE_CROSS_CHANNEL" = "xyes" -a "x$vma_cv_directverbs" == x2],
-        [AC_DEFINE_UNQUOTED([HAVE_DIRECT_RING], [1], [Define to 1 if direct ring is supported])]
-        [AC_MSG_RESULT([yes])],
-        [AC_MSG_RESULT([no])]
-    )
-
     AC_CHECK_FUNCS([rdma_lib_reset])
     AC_CHECK_FUNCS([ibv_exp_get_device_list])
 fi
